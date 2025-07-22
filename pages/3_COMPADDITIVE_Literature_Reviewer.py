@@ -88,11 +88,14 @@ else:
         if col8.button("👁️", key=f"view_{i}"):
             file_ext = row["stored_filename"].split(".")[-1].lower()
             st.markdown(f"### 👁️ Preview: {row['user_given_name']}")
+
             if file_ext == "pdf":
-                with open(file_path, "rb") as f:
-                    st.download_button("📥 Download", f, file_name=row["original_filename"])
-                    st.pdf(f)
+                show_pdf(file_path)
+
             elif file_ext in ["jpg", "jpeg", "png"]:
-                st.image(file_path, caption=row["user_given_name"], use_column_width=True)
+                from PIL import Image
+                image = Image.open(file_path)
+                st.image(image, caption=row["user_given_name"], use_column_width=True)
+
             else:
                 st.info("📂 Preview not available for this file type.")
