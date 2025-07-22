@@ -71,7 +71,7 @@ else:
             df_meta = df_meta.drop(i).reset_index(drop=True)
             df_meta.to_csv(metadata_file, index=False)
             st.success(f"Deleted {row['user_given_name']}")
-            st.experimental_rerun()
+            st.rerun()
 
 # 🟦 VERİ SEÇİMİ VE ANALİZ
 st.subheader("📊 Choose data to analyze")
