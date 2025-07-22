@@ -24,7 +24,7 @@ uploaded_file = st.file_uploader("Upload Excel file", type=["csv", "xlsx"])
 user_given_name = st.text_input("Enter a name for this file")
 
 if "username" not in st.session_state:
-    st.session_state.username = "anonymous"  # You can change this later to actual login user
+    st.session_state.username = "unknown"  # yedek amaçlı
 
 if st.button("Upload") and uploaded_file is not None and user_given_name:
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
