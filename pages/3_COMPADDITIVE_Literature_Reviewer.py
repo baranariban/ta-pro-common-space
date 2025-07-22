@@ -87,7 +87,6 @@ else:
 
         with cols[7]:
             if st.button("👁️", key=f"view_{i}"):
-                st.markdown(f"### 👁️ Preview: {row['user_given_name']}")
                 ext = row['stored_filename'].split('.')[-1].lower()
                 if ext in ['jpg', 'jpeg', 'png']:
                     try:
@@ -96,4 +95,4 @@ else:
                     except:
                         st.warning("⚠️ Unable to display image.")
                 else:
-                    st.warning("🔒 Preview not available for this file type.")
+                    continue
