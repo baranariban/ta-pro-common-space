@@ -12,6 +12,7 @@ def login():
     if login_button:
         if check_credentials(username, password):
             st.session_state.authenticated = True
+            st.session_state.username = username
             st.success("✅ Login successful! Redirecting...")
             st.switch_page("pages/0_Home.py")
         else:
