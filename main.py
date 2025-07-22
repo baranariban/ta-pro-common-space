@@ -3,7 +3,7 @@ from auth import check_credentials
 
 def login():
     st.set_page_config(page_title="Login", page_icon="🔐", layout="centered")
-    st.title("🔐 TA & PRO Common Space Login")
+    st.title("🔐 TA & PRO Common Space Login Page")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
