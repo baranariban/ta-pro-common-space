@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 import base64
 
-st.set_page_config(page_title="COMPADDITIVE Literature Reviewer", layout="wide")
-st.title("📚 COMPADDITIVE Literature Reviewer")
+st.set_page_config(page_title="CREDIT Literature Reviewer", layout="wide")
+st.title("📚 CREDIT Literature Reviewer")
 
 UPLOAD_DIR = "uploaded_literature_credit"
 METADATA_FILE = "literature_files_credit.json"
