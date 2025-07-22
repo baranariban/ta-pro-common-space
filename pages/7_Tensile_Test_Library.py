@@ -1,77 +1,24 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+from io import StringIO, BytesIO
 import os
-from datetime import datetime
+import base64
 
 st.set_page_config(page_title="Tensile Test Library", page_icon="🔬", layout="wide")
 st.title("🔬 Tensile Test Library")
 
-# Define permanent upload folder
 UPLOAD_DIR = "uploaded_tensile_files"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# Load metadata
 metadata_file = os.path.join(UPLOAD_DIR, "metadata.csv")
+
 if os.path.exists(metadata_file):
     df_meta = pd.read_csv(metadata_file)
 else:
     df_meta = pd.DataFrame(columns=["stored_filename", "original_filename", "user_given_name", "uploader", "timestamp"])
     df_meta.to_csv(metadata_file, index=False)
 
-# File upload section
-st.subheader("📤 Upload a new tensile test file")
-uploaded_file = st.file_uploader("Upload Excel file", type=["csv", "xlsx"])
-user_given_name = st.text_input("Enter a name for this file")
-
-if "username" not in st.session_state:
-    st.session_state.username = "unknown"  # yedek amaçlı
-
-if st.button("Upload") and uploaded_file is not None and user_given_name:
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    stored_filename = f"{timestamp}_{uploaded_file.name}"
-    filepath = os.path.join(UPLOAD_DIR, stored_filename)
-
-    with open(filepath, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
-    # Add metadata
-    new_entry = pd.DataFrame([{
-        "stored_filename": stored_filename,
-        "original_filename": uploaded_file.name,
-        "user_given_name": user_given_name,
-        "uploader": st.session_state.username,
-        "timestamp": timestamp
-    }])
-    df_meta = pd.concat([df_meta, new_entry], ignore_index=True)
-    df_meta.to_csv(metadata_file, index=False)
-    st.success("File uploaded successfully. Please refresh the page.")
-
-# Show uploaded files
-st.subheader("📁 Uploaded Files")
-
-def delete_file(stored_filename):
-    os.remove(os.path.join(UPLOAD_DIR, stored_filename))
-    df_meta.drop(df_meta[df_meta["stored_filename"] == stored_filename].index, inplace=True)
-    df_meta.to_csv(metadata_file, index=False)
-    st.experimental_rerun()
-
-if len(df_meta) == 0:
-    st.info("No files uploaded yet.")
-else:
-    for i, row in df_meta.iterrows():
-        col1, col2, col3, col4, col5 = st.columns([3, 3, 2, 2, 1])
-        col1.write(f"**Original:** {row['original_filename']}")
-        col2.write(f"**Name:** {row['user_given_name']}")
-        col3.write(f"**Uploader:** {row['uploader']}")
-        col4.write(f"**Time:** {row['timestamp']}")
-        if col5.button("Delete", key=row['stored_filename']):
-            delete_file(row['stored_filename'])
-
-import matplotlib.pyplot as plt
-from io import StringIO, BytesIO
-from fpdf import FPDF
-import base64
-
+# Başlık
 st.subheader("📊 Choose data to analyze")
 
 selected_names = st.multiselect(
@@ -110,10 +57,11 @@ for name in selected_names:
         df_result = df_clean[["Strain_2", "Stress_MPa"]].copy()
         df_result = df_result.rename(columns={"Strain_2": "Strain (%)", "Stress_MPa": "Stress (MPa)"})
 
+        # GÖSTER
         st.markdown(f"### 📄 Data from: *{name}*")
         st.dataframe(df_result)
 
-        # Grafik (bireysel)
+        # GRAFİK
         fig, ax = plt.subplots()
         ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
         ax.set_xlabel("Strain (%)")
@@ -121,48 +69,34 @@ for name in selected_names:
         ax.set_title(f"Stress-Strain Curve: {name}")
         st.pyplot(fig)
 
-        # Grafik (birleştirilmiş)
-        combined_ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
-
-        # PNG İNDİRME
+        # BİREYSEL PNG İNDİR
         png_buffer = BytesIO()
         fig.savefig(png_buffer, format="png")
         b64_png = base64.b64encode(png_buffer.getvalue()).decode()
-        href = f'<a href="data:image/png;base64,{b64_png}" download="{name}_plot.png">📥 Download PNG</a>'
-        st.markdown(href, unsafe_allow_html=True)
+        href_png = f'<a href="data:image/png;base64,{b64_png}" download="{name}_plot.png">📥 Download PNG</a>'
+        st.markdown(href_png, unsafe_allow_html=True)
 
-        # PDF İNDİRME
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt=f"Stress-Strain Report: {name}", ln=True, align='C')
-        pdf.ln(10)
+        # EXCEL İNDİR
+        excel_buffer = BytesIO()
+        df_result.to_excel(excel_buffer, index=False, engine='openpyxl')
+        b64_excel = base64.b64encode(excel_buffer.getvalue()).decode()
+        href_excel = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64_excel}" download="{name}_data.xlsx">📥 Download Excel</a>'
+        st.markdown(href_excel, unsafe_allow_html=True)
 
-        # Tabloyu PDF'e ekle
-        for i in range(min(10, len(df_result))):  # sadece ilk 10 satır örnek olsun
-            row = df_result.iloc[i]
-            pdf.cell(0, 10, txt=f"Strain: {row['Strain (%)']}, Stress: {row['Stress (MPa)']}", ln=True)
-
-        # Grafiği PDF'e ekle
-        img_buf = BytesIO()
-        fig.savefig(img_buf, format='png')
-        img_buf.seek(0)
-        img_path = os.path.join(UPLOAD_DIR, f"{name}_temp.png")
-        with open(img_path, "wb") as f:
-            f.write(img_buf.read())
-        pdf.image(img_path, x=10, y=pdf.get_y(), w=180)
-
-        # PDF verisini oluştur
-        pdf_data = pdf.output(dest='S').encode('latin-1')
-        b64_pdf = base64.b64encode(pdf_data).decode()
-        href_pdf = f'<a href="data:application/octet-stream;base64,{b64_pdf}" download="{name}_report.pdf">📄 Download PDF</a>'
-        st.markdown(href_pdf, unsafe_allow_html=True)
+        # ORTAK GRAFİĞE EKLE
+        combined_ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
 
     except Exception as e:
         st.error(f"❌ Error in file '{file_info['original_filename']}': {e}")
 
-# Ortak grafik
+# Combined plot
 if selected_names:
     combined_ax.legend()
     st.markdown("### 📈 Combined Stress-Strain Graph")
     st.pyplot(combined_fig)
+
+    combined_png_buf = BytesIO()
+    combined_fig.savefig(combined_png_buf, format="png")
+    b64_combined = base64.b64encode(combined_png_buf.getvalue()).decode()
+    combined_href = f'<a href="data:image/png;base64,{b64_combined}" download="combined_stress_strain.png">📥 Download Combined PNG</a>'
+    st.markdown(combined_href, unsafe_allow_html=True)
