@@ -49,6 +49,30 @@ if st.button("Upload") and uploaded_file and user_given_name:
     df_meta.to_csv(metadata_file, index=False)
     st.success("✅ File uploaded successfully. Please refresh the page.")
 
+# 🗂️ Mevcut dosyaların listesini göster
+st.subheader("📁 Uploaded Files")
+
+if df_meta.empty:
+    st.info("No files uploaded yet.")
+else:
+    # Dosya tablosunu hazırla
+    for i, row in df_meta.iterrows():
+        col1, col2, col3, col4 = st.columns([3, 3, 2, 1])
+        col1.markdown(f"📄 **Original file:** {row['original_filename']}")
+        col2.markdown(f"📝 **Name given:** {row['user_given_name']}")
+        col3.markdown(f"👤 **Uploader:** {row['uploader']}")
+
+        if col4.button("❌ Delete", key=f"delete_{i}"):
+            # Dosya silinsin
+            file_to_delete = os.path.join(UPLOAD_DIR, row["stored_filename"])
+            if os.path.exists(file_to_delete):
+                os.remove(file_to_delete)
+
+            df_meta = df_meta.drop(i).reset_index(drop=True)
+            df_meta.to_csv(metadata_file, index=False)
+            st.success(f"Deleted {row['user_given_name']}")
+            st.experimental_rerun()
+
 # 🟦 VERİ SEÇİMİ VE ANALİZ
 st.subheader("📊 Choose data to analyze")
 
