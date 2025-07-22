@@ -68,47 +68,72 @@ else:
             delete_file(row['stored_filename'])
 
 import matplotlib.pyplot as plt
+from io import StringIO
 
 # Başlık
 st.subheader("📊 Choose data to analyze")
 
-# Tüm yüklenen dosyaları kullanıcıya göster (verdiği isimle)
+# Kullanıcının verdiği adları seçenek olarak sun
 selected_names = st.multiselect(
     label="Select one or more uploaded files to visualize",
     options=df_meta["user_given_name"].tolist()
 )
 
-# Seçilen her dosya için strain-stress verisi göster ve grafiğini çiz
+# Her seçilen dosya için işlem yap
 for name in selected_names:
     file_info = df_meta[df_meta["user_given_name"] == name].iloc[0]
     filepath = os.path.join(UPLOAD_DIR, file_info["stored_filename"])
 
-    # Dosyayı oku (hem CSV hem Excel destekli)
-    if filepath.endswith(".csv"):
-        df_data = pd.read_csv(filepath)
-    else:
-        df_data = pd.read_excel(filepath)
+    try:
+        if filepath.endswith(".csv"):
+            with open(filepath, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        else:
+            st.warning(f"📄 Excel files are not yet supported for this analysis.")
+            continue
 
-    # strain (%) ve stress (MPa) kolonlarını bulmaya çalış
-    strain_col = None
-    stress_col = None
-    for col in df_data.columns:
-        if "strain" in col.lower():
-            strain_col = col
-        if "stress" in col.lower():
-            stress_col = col
+        # "Time measurement" satırını bul
+        start_index = None
+        for i, line in enumerate(lines):
+            if "Time measurement" in line:
+                start_index = i
+                break
 
-    if strain_col and stress_col:
+        if start_index is None:
+            st.warning(f"⚠️ No data block found in file: {file_info['original_filename']}")
+            continue
+
+        # Tabloyu ayır ve başlık satırını ayır
+        table_lines = lines[start_index:]
+        df_table = pd.read_csv(StringIO("".join(table_lines)))
+        df_clean = df_table[1:].copy()
+        df_clean.columns = df_table.iloc[0]
+        df_clean.columns = df_clean.columns.str.strip()
+
+        # Sabit kolon adları
+        df_clean.columns = ['Time_s', 'Extension_mm', 'Force_N', 'Strain_1', 'Strain_2', 'Stress_MPa']
+
+        # Sayısal dönüştürme
+        df_clean["Strain_2"] = pd.to_numeric(df_clean["Strain_2"], errors="coerce")
+        df_clean["Stress_MPa"] = pd.to_numeric(df_clean["Stress_MPa"], errors="coerce")
+
+        # Son tabloyu oluştur
+        df_result = df_clean[["Strain_2", "Stress_MPa"]].copy()
+        df_result = df_result.rename(columns={"Strain_2": "Strain (%)", "Stress_MPa": "Stress (MPa)"})
+
+        # Gösterim
         st.markdown(f"### 📄 Data from: *{name}*")
-        st.dataframe(df_data[[strain_col, stress_col]])
+        st.dataframe(df_result)
 
-        # Grafik çiz
+        # Grafik
         fig, ax = plt.subplots()
-        ax.plot(df_data[strain_col], df_data[stress_col], label=name)
+        ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
         ax.set_xlabel("Strain (%)")
         ax.set_ylabel("Stress (MPa)")
         ax.set_title(f"Stress-Strain Curve: {name}")
         ax.legend()
         st.pyplot(fig)
-    else:
-        st.warning(f"⚠️ File '{file_info['original_filename']}' does not contain 'strain' and 'stress' columns.")
+
+    except Exception as e:
+        st.error(f"❌ Error reading file '{file_info['original_filename']}': {e}")
+
