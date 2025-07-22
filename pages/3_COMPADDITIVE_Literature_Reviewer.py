@@ -54,7 +54,7 @@ if st.button("Upload") and uploaded_file and user_given_name:
     metadata_df = pd.concat([metadata_df, pd.DataFrame([new_entry])], ignore_index=True)
     metadata_df.to_csv(METADATA_FILE, index=False)
     st.success("File uploaded successfully.")
-    st.experimental_rerun()
+    st.rerun()
 
 # 📄 Yüklenen dosyaları göster
 st.subheader("📂 Uploaded Files")
@@ -67,8 +67,8 @@ else:
         cols = st.columns([2, 2, 3, 2, 2, 1, 1, 1])
         with cols[0]: st.markdown(f"📄 **Original:** {row['original_filename']}")
         with cols[1]: st.markdown(f"🏷️ **Title:** {row['user_given_name']}")
-        with cols[2]: st.markdown(f"📝 **Description:** {row['description']}")
-        with cols[3]: st.markdown(f"🙍 **Uploader:** {row['uploader']}")
+        with cols[2]: st.markdown(f"📜 **Description:** {row['description']}")
+        with cols[3]: st.markdown(f"👭 **Uploader:** {row['uploader']}")
         with cols[4]: st.markdown(f"🕒 **Date:** {row['upload_time']}")
 
         with cols[5]:
@@ -77,12 +77,12 @@ else:
                 metadata_df = metadata_df.drop(i).reset_index(drop=True)
                 metadata_df.to_csv(METADATA_FILE, index=False)
                 st.success("File deleted.")
-                st.experimental_rerun()
+                st.rerun()
 
         with cols[6]:
             with open(file_path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
-                href = f'<a href="data:application/octet-stream;base64,{b64}" download="{row["original_filename"]}">📥</a>'
+                href = f'<a href="data:application/octet-stream;base64,{b64}" download="{row["original_filename"]}">👅</a>'
                 st.markdown(href, unsafe_allow_html=True)
 
         with cols[7]:
@@ -96,4 +96,4 @@ else:
                     except:
                         st.warning("⚠️ Unable to display image.")
                 else:
-                    st.info("🔒 Preview not available for this file type.")
+                    st.info("🔐 Preview not available for this file type.")
