@@ -96,12 +96,4 @@ else:
                     except:
                         st.warning("⚠️ Unable to display image.")
                 else:
-                    st.markdown(
-    """
-    <div style='text-align: center; padding: 2em; border: 2px dashed #999; border-radius: 10px; background-color: #1e1e1e; color: #ddd;'>
-        🔒 <strong>Preview not available for this file type.</strong>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
+                    st.warning("🔒 Preview not available for this file type.")
