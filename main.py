@@ -1,6 +1,6 @@
 import streamlit as st
-import time
 from auth import check_credentials
+import time  # yeni eklendi
 
 def login():
     st.set_page_config(page_title="Login", page_icon="🔐", layout="centered")
@@ -14,6 +14,8 @@ def login():
         if check_credentials(username, password):
             st.session_state.authenticated = True
             st.success("✅ Login successful! Redirecting...")
+            st.markdown("⌛ Lütfen bekleyin, ana sayfa yükleniyor...")
+            time.sleep(1)  # 1 saniye gecikme
             st.switch_page("pages/0_Home.py")
         else:
             st.error("❌ Invalid username or password.")
