@@ -66,3 +66,49 @@ else:
         col4.write(f"**Time:** {row['timestamp']}")
         if col5.button("Delete", key=row['stored_filename']):
             delete_file(row['stored_filename'])
+
+import matplotlib.pyplot as plt
+
+# Başlık
+st.subheader("📊 Choose data to analyze")
+
+# Tüm yüklenen dosyaları kullanıcıya göster (verdiği isimle)
+selected_names = st.multiselect(
+    label="Select one or more uploaded files to visualize",
+    options=df_meta["user_given_name"].tolist()
+)
+
+# Seçilen her dosya için strain-stress verisi göster ve grafiğini çiz
+for name in selected_names:
+    file_info = df_meta[df_meta["user_given_name"] == name].iloc[0]
+    filepath = os.path.join(UPLOAD_DIR, file_info["stored_filename"])
+
+    # Dosyayı oku (hem CSV hem Excel destekli)
+    if filepath.endswith(".csv"):
+        df_data = pd.read_csv(filepath)
+    else:
+        df_data = pd.read_excel(filepath)
+
+    # strain (%) ve stress (MPa) kolonlarını bulmaya çalış
+    strain_col = None
+    stress_col = None
+    for col in df_data.columns:
+        if "strain" in col.lower():
+            strain_col = col
+        if "stress" in col.lower():
+            stress_col = col
+
+    if strain_col and stress_col:
+        st.markdown(f"### 📄 Data from: *{name}*")
+        st.dataframe(df_data[[strain_col, stress_col]])
+
+        # Grafik çiz
+        fig, ax = plt.subplots()
+        ax.plot(df_data[strain_col], df_data[stress_col], label=name)
+        ax.set_xlabel("Strain (%)")
+        ax.set_ylabel("Stress (MPa)")
+        ax.set_title(f"Stress-Strain Curve: {name}")
+        ax.legend()
+        st.pyplot(fig)
+    else:
+        st.warning(f"⚠️ File '{file_info['original_filename']}' does not contain 'strain' and 'stress' columns.")
