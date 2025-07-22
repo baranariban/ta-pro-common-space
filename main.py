@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from auth import check_credentials
 
 def login():
