@@ -84,15 +84,3 @@ else:
                 b64 = base64.b64encode(f.read()).decode()
                 href = f'<a href="data:application/octet-stream;base64,{b64}" download="{row["original_filename"]}">👅</a>'
                 st.markdown(href, unsafe_allow_html=True)
-
-        with cols[7]:
-            if st.button("👁️", key=f"view_{i}"):
-                ext = row['stored_filename'].split('.')[-1].lower()
-                if ext in ['jpg', 'jpeg', 'png']:
-                    try:
-                        image = Image.open(file_path)
-                        st.image(image, caption=row["user_given_name"], use_column_width=True)
-                    except:
-                        st.warning("⚠️ Unable to display image.")
-                else:
-                    continue
