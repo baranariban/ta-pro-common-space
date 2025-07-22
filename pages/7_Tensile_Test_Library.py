@@ -68,18 +68,22 @@ else:
             delete_file(row['stored_filename'])
 
 import matplotlib.pyplot as plt
-from io import StringIO
+from io import StringIO, BytesIO
+from fpdf import FPDF
+import base64
 
-# Başlık
 st.subheader("📊 Choose data to analyze")
 
-# Kullanıcının verdiği adları seçenek olarak sun
 selected_names = st.multiselect(
     label="Select one or more uploaded files to visualize",
     options=df_meta["user_given_name"].tolist()
 )
 
-# Her seçilen dosya için işlem yap
+combined_fig, combined_ax = plt.subplots()
+combined_ax.set_xlabel("Strain (%)")
+combined_ax.set_ylabel("Stress (MPa)")
+combined_ax.set_title("Stress-Strain Curves")
+
 for name in selected_names:
     file_info = df_meta[df_meta["user_given_name"] == name].iloc[0]
     filepath = os.path.join(UPLOAD_DIR, file_info["stored_filename"])
@@ -92,48 +96,74 @@ for name in selected_names:
             st.warning(f"📄 Excel files are not yet supported for this analysis.")
             continue
 
-        # "Time measurement" satırını bul
-        start_index = None
-        for i, line in enumerate(lines):
-            if "Time measurement" in line:
-                start_index = i
-                break
-
-        if start_index is None:
-            st.warning(f"⚠️ No data block found in file: {file_info['original_filename']}")
-            continue
-
-        # Tabloyu ayır ve başlık satırını ayır
+        start_index = next(i for i, line in enumerate(lines) if "Time measurement" in line)
         table_lines = lines[start_index:]
         df_table = pd.read_csv(StringIO("".join(table_lines)))
         df_clean = df_table[1:].copy()
         df_clean.columns = df_table.iloc[0]
         df_clean.columns = df_clean.columns.str.strip()
-
-        # Sabit kolon adları
         df_clean.columns = ['Time_s', 'Extension_mm', 'Force_N', 'Strain_1', 'Strain_2', 'Stress_MPa']
 
-        # Sayısal dönüştürme
         df_clean["Strain_2"] = pd.to_numeric(df_clean["Strain_2"], errors="coerce")
         df_clean["Stress_MPa"] = pd.to_numeric(df_clean["Stress_MPa"], errors="coerce")
 
-        # Son tabloyu oluştur
         df_result = df_clean[["Strain_2", "Stress_MPa"]].copy()
         df_result = df_result.rename(columns={"Strain_2": "Strain (%)", "Stress_MPa": "Stress (MPa)"})
 
-        # Gösterim
         st.markdown(f"### 📄 Data from: *{name}*")
         st.dataframe(df_result)
 
-        # Grafik
+        # Grafik (bireysel)
         fig, ax = plt.subplots()
         ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
         ax.set_xlabel("Strain (%)")
         ax.set_ylabel("Stress (MPa)")
         ax.set_title(f"Stress-Strain Curve: {name}")
-        ax.legend()
         st.pyplot(fig)
 
-    except Exception as e:
-        st.error(f"❌ Error reading file '{file_info['original_filename']}': {e}")
+        # Grafik (birleştirilmiş)
+        combined_ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
 
+        # PNG İNDİRME
+        png_buffer = BytesIO()
+        fig.savefig(png_buffer, format="png")
+        b64_png = base64.b64encode(png_buffer.getvalue()).decode()
+        href = f'<a href="data:image/png;base64,{b64_png}" download="{name}_plot.png">📥 Download PNG</a>'
+        st.markdown(href, unsafe_allow_html=True)
+
+        # PDF İNDİRME
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt=f"Stress-Strain Report: {name}", ln=True, align='C')
+        pdf.ln(10)
+
+        # Tabloyu PDF'e ekle
+        for i in range(min(10, len(df_result))):  # sadece ilk 10 satır örnek olsun
+            row = df_result.iloc[i]
+            pdf.cell(0, 10, txt=f"Strain: {row['Strain (%)']}, Stress: {row['Stress (MPa)']}", ln=True)
+
+        # Grafiği PDF'e ekle
+        img_buf = BytesIO()
+        fig.savefig(img_buf, format='png')
+        img_buf.seek(0)
+        img_path = os.path.join(UPLOAD_DIR, f"{name}_temp.png")
+        with open(img_path, "wb") as f:
+            f.write(img_buf.read())
+        pdf.image(img_path, x=10, y=pdf.get_y(), w=180)
+
+        # PDF verisini oluştur
+        pdf_bytes = BytesIO()
+        pdf.output(pdf_bytes)
+        b64_pdf = base64.b64encode(pdf_bytes.getvalue()).decode()
+        href_pdf = f'<a href="data:application/octet-stream;base64,{b64_pdf}" download="{name}_report.pdf">📄 Download PDF</a>'
+        st.markdown(href_pdf, unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"❌ Error in file '{file_info['original_filename']}': {e}")
+
+# Ortak grafik
+if selected_names:
+    combined_ax.legend()
+    st.markdown("### 📈 Combined Stress-Strain Graph")
+    st.pyplot(combined_fig)
