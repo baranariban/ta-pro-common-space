@@ -1,4 +1,4 @@
-# ✅ COMPADDITIVE_Literature_Reviewer.py (3_COMPADDITIVE_Literature_Reviewer.py)
+# ✅ CREDIT_Literature_Reviewer.py (4_CREDIT_Literature_Reviewer.py)
 import streamlit as st
 import os
 import json
@@ -50,8 +50,8 @@ def file_uploader():
 
 def display_uploaded_files():
     st.subheader("📁 Uploaded Files")
-    for file in uploaded_files:
-        col1, col2, col3, col4, col5, col6, col7 = st.columns([2, 2, 3, 2, 2, 1, 1])
+    for i, file in enumerate(uploaded_files):
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([2, 2, 3, 2, 2, 1, 1, 1])
         col1.write(f"**Original:** {file['filename']}")
         col2.write(f"**Title:** {file['title']}")
         col3.write(f"**Description:** {file['description']}")
@@ -63,7 +63,7 @@ def display_uploaded_files():
             file_path = os.path.join(UPLOAD_DIR, file['filename'])
             if os.path.exists(file_path):
                 os.remove(file_path)
-            uploaded_files.remove(file)
+            uploaded_files.pop(i)
             save_metadata()
             st.rerun()
 
@@ -73,21 +73,26 @@ def display_uploaded_files():
             href = f'<a href="data:file/octet-stream;base64,{b64}" download="{file["filename"]}">📥</a>'
             col7.markdown(href, unsafe_allow_html=True)
 
-        # Preview
-        st.markdown(f"### 👁️ Preview: {file['title']}")
-        file_path = os.path.join(UPLOAD_DIR, file['filename'])
-        if file['filename'].lower().endswith((".png", ".jpg", ".jpeg")):
-            st.image(file_path, use_column_width=True)
-        else:
-            st.markdown(
-                """
-                <div style='text-align: center; padding: 1em; border: 2px dashed #999; border-radius: 10px; background-color: #1e1e1e; color: #ddd;'>
-                    🔒 <strong>Preview not available for this file type.</strong>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        st.markdown("---")
+        # Preview toggle button
+        if col8.button("👁️", key=f"preview_{file['filename']}"):
+            st.session_state[f"show_preview_{file['filename']}"] = not st.session_state.get(f"show_preview_{file['filename']}", False)
+
+        # Conditional preview section
+        if st.session_state.get(f"show_preview_{file['filename']}", False):
+            st.markdown(f"### 👁️ Preview: {file['title']}")
+            file_path = os.path.join(UPLOAD_DIR, file['filename'])
+            if file['filename'].lower().endswith((".png", ".jpg", ".jpeg")):
+                st.image(file_path, use_column_width=True)
+            else:
+                st.markdown(
+                    """
+                    <div style='text-align: center; padding: 1em; border: 2px dashed #999; border-radius: 10px; background-color: #1e1e1e; color: #ddd;'>
+                        🔒 <strong>Preview not available for this file type.</strong>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            st.markdown("---")
 
 file_uploader()
 display_uploaded_files()
