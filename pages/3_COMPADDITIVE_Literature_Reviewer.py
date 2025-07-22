@@ -2,107 +2,98 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-from io import BytesIO
 import base64
+from PIL import Image
 
-def show_pdf(file_path):
-    import base64
-    with open(file_path, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
-        st.markdown(pdf_display, unsafe_allow_html=True)
+st.set_page_config(page_title="COMPADDITIVE Literature Reviewer", layout="wide")
 
-st.set_page_config(page_title="Literature Reviewer", page_icon="📚", layout="wide")
 st.title("📚 COMPADDITIVE Literature Reviewer")
 
-UPLOAD_DIR = "uploaded_literature_files"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-metadata_file = os.path.join(UPLOAD_DIR, "metadata.csv")
+# 📂 Kalıcı klasör & veri yolları
+UPLOAD_FOLDER = "lit_reviewer_files_compadditive"
+METADATA_FILE = os.path.join(UPLOAD_FOLDER, "file_metadata.csv")
 
-# Metadata dosyasını oku/yoksa oluştur
-if os.path.exists(metadata_file):
-    df_meta = pd.read_csv(metadata_file)
-else:
-    df_meta = pd.DataFrame(columns=[
-        "stored_filename", "original_filename", "user_given_name", "description", "uploader", "timestamp"
-    ])
-    df_meta.to_csv(metadata_file, index=False)
-
-# 🔼 Dosya yükleme alanı
-st.subheader("📤 Upload a new file")
-uploaded_file = st.file_uploader(
-    "Supported: PDF, JPG, PNG, XLSX, DOCX, PPTX",
-    type=["pdf", "jpg", "jpeg", "png", "xlsx", "docx", "pptx"]
-)
-user_given_name = st.text_input("Enter a title for this file")
-description = st.text_area("Enter a short description")
-
+# 🧪 Giriş yapan kullanıcı
 if "username" not in st.session_state:
-    st.session_state.username = "unknown"
+    st.error("Please log in first.")
+    st.stop()
 
+current_user = st.session_state["username"]
+
+# 📁 Klasör yoksa oluştur
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# 📊 Metadata yükle veya oluştur
+if os.path.exists(METADATA_FILE):
+    metadata_df = pd.read_csv(METADATA_FILE)
+else:
+    metadata_df = pd.DataFrame(columns=["original_filename", "user_given_name", "description", "stored_filename", "uploader", "upload_time"])
+
+# 🔼 Dosya yükleme
+st.subheader("Upload a new file")
+uploaded_file = st.file_uploader("Choose file", type=["pdf", "png", "jpg", "jpeg", "xlsx", "xls", "docx", "pptx"], label_visibility="collapsed")
+user_given_name = st.text_input("Enter a title for this file")
+user_description = st.text_area("Enter a description for this file")
 if st.button("Upload") and uploaded_file and user_given_name:
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{uploaded_file.name}"
-    filepath = os.path.join(UPLOAD_DIR, stored_filename)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    stored_filename = f"{timestamp}_{uploaded_file.name}"
+    file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
 
-    with open(filepath, "wb") as f:
-        f.write(uploaded_file.getbuffer())
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.read())
 
-    new_entry = pd.DataFrame([{
-        "stored_filename": stored_filename,
+    new_entry = {
         "original_filename": uploaded_file.name,
         "user_given_name": user_given_name,
-        "description": description,
-        "uploader": st.session_state.username,
-        "timestamp": timestamp
-    }])
-    df_meta = pd.concat([df_meta, new_entry], ignore_index=True)
-    df_meta.to_csv(metadata_file, index=False)
-    st.success("✅ File uploaded successfully. Please refresh the page.")
+        "description": user_description,
+        "stored_filename": stored_filename,
+        "uploader": current_user,
+        "upload_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
-# 🔽 Listeleme bölümü
-st.subheader("📁 Uploaded Files")
+    metadata_df = pd.concat([metadata_df, pd.DataFrame([new_entry])], ignore_index=True)
+    metadata_df.to_csv(METADATA_FILE, index=False)
+    st.success("File uploaded successfully.")
+    st.experimental_rerun()
 
-if df_meta.empty:
+# 📄 Yüklenen dosyaları göster
+st.subheader("📂 Uploaded Files")
+
+if metadata_df.empty:
     st.info("No files uploaded yet.")
 else:
-    for i, row in df_meta.iterrows():
-        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns([2, 2, 3, 2, 2, 1, 1, 1])
+    for i, row in metadata_df.iterrows():
+        file_path = os.path.join(UPLOAD_FOLDER, row["stored_filename"])
+        cols = st.columns([2, 2, 3, 2, 2, 1, 1, 1])
+        with cols[0]: st.markdown(f"📄 **Original:** {row['original_filename']}")
+        with cols[1]: st.markdown(f"🏷️ **Title:** {row['user_given_name']}")
+        with cols[2]: st.markdown(f"📝 **Description:** {row['description']}")
+        with cols[3]: st.markdown(f"🙍 **Uploader:** {row['uploader']}")
+        with cols[4]: st.markdown(f"🕒 **Date:** {row['upload_time']}")
 
-        col1.markdown(f"📄 **Original:** {row['original_filename']}")
-        col2.markdown(f"📝 **Title:** {row['user_given_name']}")
-        col3.markdown(f"💬 **Description:** {row['description']}")
-        col4.markdown(f"👤 **Uploader:** {row['uploader']}")
-        col5.markdown(f"🕒 **Date:** {row['timestamp']}")
-        file_path = os.path.join(UPLOAD_DIR, row["stored_filename"])
-
-        # ❌ Silme butonu
-        if col6.button("❌", key=f"delete_{i}"):
-            if os.path.exists(file_path):
+        with cols[5]:
+            if st.button("❌", key=f"delete_{i}"):
                 os.remove(file_path)
-            df_meta = df_meta.drop(i).reset_index(drop=True)
-            df_meta.to_csv(metadata_file, index=False)
-            st.success(f"Deleted: {row['user_given_name']}")
-            st.experimental_rerun()
+                metadata_df = metadata_df.drop(i).reset_index(drop=True)
+                metadata_df.to_csv(METADATA_FILE, index=False)
+                st.success("File deleted.")
+                st.experimental_rerun()
 
-        # ⬇️ İndirme butonu
-        with open(file_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{row["original_filename"]}">⬇️</a>'
-            col7.markdown(href, unsafe_allow_html=True)
+        with cols[6]:
+            with open(file_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+                href = f'<a href="data:application/octet-stream;base64,{b64}" download="{row["original_filename"]}">📥</a>'
+                st.markdown(href, unsafe_allow_html=True)
 
-        # 👁️ Önizleme butonu
-        if col8.button("👁️", key=f"view_{i}"):
-            file_ext = row["stored_filename"].split(".")[-1].lower()
-            st.markdown(f"### 👁️ Preview: {row['user_given_name']}")
-
-            if file_ext == "pdf":
-                show_pdf(file_path)
-
-            elif file_ext in ["jpg", "jpeg", "png"]:
-                from PIL import Image
-                image = Image.open(file_path)
-                st.image(image, caption=row["user_given_name"], use_column_width=True)
-
-            else:
-                st.info("📂 Preview not available for this file type.")
+        with cols[7]:
+            if st.button("👁️", key=f"view_{i}"):
+                st.markdown(f"### 👁️ Preview: {row['user_given_name']}")
+                ext = row['stored_filename'].split('.')[-1].lower()
+                if ext in ['jpg', 'jpeg', 'png']:
+                    try:
+                        image = Image.open(file_path)
+                        st.image(image, caption=row["user_given_name"], use_column_width=True)
+                    except:
+                        st.warning("⚠️ Unable to display image.")
+                else:
+                    st.info("🔒 Preview not available for this file type.")
