@@ -153,9 +153,8 @@ for name in selected_names:
         pdf.image(img_path, x=10, y=pdf.get_y(), w=180)
 
         # PDF verisini oluştur
-        pdf_bytes = BytesIO()
-        pdf.output(pdf_bytes)
-        b64_pdf = base64.b64encode(pdf_bytes.getvalue()).decode()
+        pdf_data = pdf.output(dest='S').encode('latin-1')
+        b64_pdf = base64.b64encode(pdf_data).decode()
         href_pdf = f'<a href="data:application/octet-stream;base64,{b64_pdf}" download="{name}_report.pdf">📄 Download PDF</a>'
         st.markdown(href_pdf, unsafe_allow_html=True)
 
