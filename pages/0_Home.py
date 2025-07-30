@@ -15,7 +15,8 @@ page = st.sidebar.radio("📁 Navigation", [
     "COMPADDITIVE Meeting Notes",
     "CREDIT Meeting Notes",
     "Tensile Test Library",
-    "Fatigue Test Library"
+    "Fatigue Test Library",
+    "Production Tracker"
 ])
 
 # Seçilen menüye göre sayfaya yönlendirme
