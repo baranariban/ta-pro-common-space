@@ -33,7 +33,10 @@ with st.form("entry_form", clear_on_submit=True):
     with col1:
         prod_name = st.text_input("Production Name", placeholder="e.g. Sample Batch #45")
         raw_material = st.text_input("Raw Material", placeholder="e.g. Polyamide 66")
-        project_name = st.text_input("Project Name", placeholder="CREDIT or COMPADDITIVE")
+        
+        # ⬅️ DEĞİŞTİRİLDİ: text_input yerine radio
+        project_name = st.radio("Project Name", ["CREDIT", "COMPADDITIVE"])
+        
         producer = st.text_input("Producer", placeholder="e.g. Zeynep Ege Uysal")
         sample_count = st.number_input("Sample Count", min_value=1, step=1)
 
@@ -67,4 +70,22 @@ st.subheader("📋 All Production Records")
 if df.empty:
     st.info("No entries yet.")
 else:
-    st.dataframe(df, use_container_width=True)
+    # ⬅️ HER SATIR İÇİN SİLME BUTONU
+    for i, row in df.iterrows():
+        with st.expander(f"🔹 {row['Production Name']} ({row['Project Name']})"):
+            st.markdown(f"""
+                **Raw Material:** {row['Raw Material']}  
+                **Project Name:** {row['Project Name']}  
+                **Producer:** {row['Producer']}  
+                **Process Parameters:** {row['Process Parameters']}  
+                **Production Date:** {row['Production Date']}  
+                **Tests Planned/Done:** {row['Tests Planned/Done']}  
+                **Sample Count:** {row['Sample Count']}  
+                **Recorded By:** {row['Recorded By']}  
+                **Entry Date:** {row['Entry Date']}  
+            """)
+            if st.button(f"🗑️ Delete This Entry", key=f"del_{i}"):
+                df = df.drop(i).reset_index(drop=True)
+                df.to_csv(DATA_FILE, index=False)
+                st.success("🗑️ Entry deleted.")
+                st.rerun()
