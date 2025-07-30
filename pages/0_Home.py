@@ -42,3 +42,6 @@ elif page == "Tensile Test Library":
 
 elif page == "Fatigue Test Library":
     st.switch_page("pages/8_Fatigue_Test_Library.py")
+
+elif page == "Production Tracker":
+    st.switch_page("pages/9_Production_Tracker.py")
