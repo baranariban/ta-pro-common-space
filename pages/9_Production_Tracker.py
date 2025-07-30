@@ -21,7 +21,8 @@ else:
     df = pd.DataFrame(columns=[
         "Production Name", "Raw Material", "Producer",
         "Process Parameters", "Production Date",
-        "Tests Planned/Done", "Recorded By", "Entry Date"
+        "Tests Planned/Done", "Sample Count",
+        "Recorded By", "Entry Date"
     ])
 
 # 📋 Giriş Formu
@@ -33,6 +34,7 @@ with st.form("entry_form", clear_on_submit=True):
         prod_name = st.text_input("Production Name", placeholder="e.g. Sample Batch #45")
         raw_material = st.text_input("Raw Material", placeholder="e.g. Polyamide 66")
         producer = st.text_input("Producer", placeholder="e.g. Zeynep Ege Uysal")
+        sample_count = st.number_input("Sample Count", min_value=1, step=1)
 
     with col2:
         prod_date = st.date_input("Production Date")
@@ -49,6 +51,7 @@ with st.form("entry_form", clear_on_submit=True):
             "Process Parameters": process_params,
             "Production Date": prod_date.strftime("%Y-%m-%d"),
             "Tests Planned/Done": tests,
+            "Sample Count": int(sample_count),
             "Recorded By": current_user,
             "Entry Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }])
