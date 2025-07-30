@@ -19,7 +19,7 @@ if os.path.exists(DATA_FILE):
     df = pd.read_csv(DATA_FILE)
 else:
     df = pd.DataFrame(columns=[
-        "Production Name", "Raw Material", "Producer",
+        "Production Name", "Raw Material", "Project Name", "Producer",
         "Process Parameters", "Production Date",
         "Tests Planned/Done", "Sample Count",
         "Recorded By", "Entry Date"
@@ -33,6 +33,7 @@ with st.form("entry_form", clear_on_submit=True):
     with col1:
         prod_name = st.text_input("Production Name", placeholder="e.g. Sample Batch #45")
         raw_material = st.text_input("Raw Material", placeholder="e.g. Polyamide 66")
+        project_name = st.text_input("Project Name", placeholder="CREDIT or COMPADDITIVE")
         producer = st.text_input("Producer", placeholder="e.g. Zeynep Ege Uysal")
         sample_count = st.number_input("Sample Count", min_value=1, step=1)
 
@@ -47,6 +48,7 @@ with st.form("entry_form", clear_on_submit=True):
         new_entry = pd.DataFrame([{
             "Production Name": prod_name,
             "Raw Material": raw_material,
+            "Project Name": project_name,
             "Producer": producer,
             "Process Parameters": process_params,
             "Production Date": prod_date.strftime("%Y-%m-%d"),
