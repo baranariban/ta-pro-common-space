@@ -835,7 +835,7 @@ with st.expander("💰 Calculate Mold Production Cost"):
     st.markdown("Upload your STL file below. The volume and dimensions will be extracted automatically.")
 
     uploaded_stl = st.file_uploader("📦 Upload STL file", type=["stl"], key="stl_upload")
-    
+
     if uploaded_stl and final_filtered_composites:
         try:
             mesh = trimesh.load(uploaded_stl, file_type='stl', force='mesh')
@@ -845,8 +845,15 @@ with st.expander("💰 Calculate Mold Production Cost"):
             bbox_mm = [round(x, 2) for x in bbox]
 
             st.success("✅ STL file successfully processed.")
-            st.markdown(f"**📐 Dimensions (mm)**: `{bbox_mm}`")
-            st.markdown(f"**📦 Volume (m³)**: `{volume_m3:.8f}`")
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric(label="📏 Width (X)", value=f"{bbox_mm[0]} mm")
+            col2.metric(label="📐 Depth (Y)", value=f"{bbox_mm[1]} mm")
+            col3.metric(label="📏 Height (Z)", value=f"{bbox_mm[2]} mm")
+
+            st.markdown("### 📦 Mold Volume")
+            st.markdown(f"<div style='font-size:20px; color:#4CAF50; font-weight:bold;'>"
+                        f"{volume_m3:.8f} m³</div>", unsafe_allow_html=True)
 
             # Üretim maliyetlerini hesapla
             results = []
@@ -871,10 +878,36 @@ with st.expander("💰 Calculate Mold Production Cost"):
                     "Estimated Production Cost (USD)": round(total_cost, 2)
                 })
 
-            # 📊 Sonuçları göster
             results_df = pd.DataFrame(results).sort_values(by="Estimated Production Cost (USD)")
+
             st.markdown("### 💸 Estimated Mold Production Cost per Composite")
-            st.dataframe(results_df, use_container_width=True)
+
+            styled_df = results_df.style\
+                .format({
+                    "Average Density (kg/m³)": "{:.0f}",
+                    "Average Cost (USD/kg)": "{:.2f}",
+                    "Estimated Mass (kg)": "{:.4f}",
+                    "Estimated Production Cost (USD)": "${:.2f}"
+                })\
+                .set_properties(**{
+                    "text-align": "center",
+                    "font-family": "Arial",
+                    "background-color": "#111",
+                    "color": "white",
+                    "border-color": "#444"
+                })\
+                .set_table_styles([{
+                    "selector": "th",
+                    "props": [
+                        ("text-align", "center"),
+                        ("background-color", "#222"),
+                        ("color", "white"),
+                        ("font-size", "14px")
+                    ]
+                }])
+
+            st.dataframe(styled_df, use_container_width=True, height=400)
 
         except Exception as e:
             st.error(f"❌ Error reading STL file: {e}")
+
