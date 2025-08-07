@@ -651,3 +651,61 @@ if passed_composites:
     st.dataframe(df_passed, use_container_width=True)
 else:
     st.warning("❌ No composites passed all three pre-screening criteria.")
+
+# 🎯 Özellik bazlı filtreleme (kriter 4+)
+
+filterable_props = [
+    "Cost (USD/kg)",
+    "Interfacial Properties with Carbon Fiber (IFSS, MPa)",
+    "Shrinkage (%)",
+    "Tensile Strength (MPa)",
+    "Flexural Modulus (GPa)",
+    "Elongation At Break (%)",
+    "Density (kg/m³)",
+    "Glass Transition Temperature (°C)",
+    "Melting Temperature (°C)",
+    "Processing Temperature (°C)",
+    "Injection Pressure (MPa)"
+]
+
+st.markdown("### 🔎 Property-Based Filtering (Optional)")
+selected_filters = {}
+
+for prop in filterable_props:
+    if st.checkbox(f"Filter by {prop}"):
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            condition = st.selectbox(f"Condition for {prop}", ["smaller than", "larger than", "equal to"], key=f"cond_{prop}")
+        with col2:
+            value = st.number_input(f"Value for {prop}", key=f"val_{prop}")
+        selected_filters[prop] = (condition, value)
+
+# 🎯 Filtreleri geçenleri belirle (şimdilik sadece listedik)
+filtered_composites = []
+
+for name in passed_composites:  # sadece 3 kriteri geçenlerden filtrele
+    props = st.session_state.datasets[name]
+    match = True
+    for prop, (condition, user_val) in selected_filters.items():
+        value_range = props.get(prop)
+        if not isinstance(value_range, tuple):
+            match = False
+            break
+        min_val, max_val = value_range
+        if condition == "smaller than":
+            if min_val > user_val:
+                match = False
+                break
+        elif condition == "larger than":
+            if max_val < user_val:
+                match = False
+                break
+        elif condition == "equal to":
+            if not (min_val <= user_val <= max_val):
+                match = False
+                break
+    if match:
+        filtered_composites.append(name)
+
+# 🎯 Filtre sonrası sonucu tutalım (gösterim sonra)
+final_filtered_composites = filtered_composites
