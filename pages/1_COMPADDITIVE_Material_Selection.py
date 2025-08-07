@@ -878,7 +878,7 @@ with st.expander("💰 Calculate Mold Production Cost"):
                     "Estimated Production Cost (USD)": round(total_cost, 2)
                 })
 
-            results_df = pd.DataFrame(results).sort_values(by="Estimated Production Cost (USD)")
+            results_df = pd.DataFrame(results).sort_values(by="Estimated Production Cost (USD)").reset_index(drop=True)
 
             st.markdown("### 💸 Estimated Mold Production Cost per Composite")
 
