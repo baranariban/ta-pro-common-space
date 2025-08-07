@@ -723,6 +723,10 @@ else:
 
 import plotly.graph_objects as go
 
+# ⚠️ Bu kod çalıştırıldıysa scored_df oluşur:
+if st.session_state.get("filtered_df_score") is not None:
+    scored_df = st.session_state["filtered_df_score"]
+
 # ⚖️ Ağırlık verme ve skor hesaplama (butonsuz otomatik başlar)
 if selected_filters and final_filtered_composites:
     st.subheader("⚖️ Set importance (weight) for each selected property")
