@@ -565,3 +565,12 @@ if st.session_state.datasets:
 
     df = pd.DataFrame(all_data)
     st.dataframe(df, use_container_width=True)
+
+# 📄 Ön Eleme Kriterleri Bilgilendirme Yazısı
+st.markdown("---")
+st.markdown("### 📌 Pre-Screening Criteria")
+st.markdown("""
+1. The **CTE of the composite** must be compatible with the **CTE of CFRP epoxy** with a **maximum variation of 60%**.  
+2. The **cost of the composite** must be **at least 30% lower than the cost of Invar** in terms of **euro/m³**.  
+3. The **composite must not undergo plastic deformation** under **autoclave conditions (180°C and 7 bar)**.
+""")
