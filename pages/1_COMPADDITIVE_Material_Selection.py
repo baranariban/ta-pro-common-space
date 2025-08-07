@@ -855,6 +855,58 @@ with st.expander("💰 Calculate Mold Production Cost"):
             st.markdown(f"<div style='font-size:20px; color:#4CAF50; font-weight:bold;'>"
                         f"{volume_m3:.8f} m³</div>", unsafe_allow_html=True)
 
+            # ✅ STL 3D ÖNİZLEME BÖLÜMÜ
+            import streamlit.components.v1 as components
+            import base64
+
+            st.markdown("### 🧩 STL Preview (3D)")
+            stl_bytes = uploaded_stl.getvalue()
+            encoded = base64.b64encode(stl_bytes).decode()
+
+            html_string = f"""
+            <html>
+              <head>
+                <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/build/three.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/examples/js/controls/OrbitControls.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/examples/js/loaders/STLLoader.js"></script>
+              </head>
+              <body>
+                <div id="container" style="width:100%; height:500px;"></div>
+                <script>
+                  var scene = new THREE.Scene();
+                  var camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+                  var renderer = new THREE.WebGLRenderer();
+                  renderer.setSize(window.innerWidth, 500);
+                  document.getElementById("container").appendChild(renderer.domElement);
+
+                  var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+                  var loader = new THREE.STLLoader();
+                  var dataUri = "data:application/octet-stream;base64,{encoded}";
+
+                  loader.load(dataUri, function (geometry) {{
+                      var material = new THREE.MeshNormalMaterial({{wireframe: false}});
+                      var mesh = new THREE.Mesh(geometry, material);
+                      geometry.computeBoundingBox();
+                      var center = new THREE.Vector3();
+                      geometry.boundingBox.getCenter(center);
+                      mesh.position.sub(center);
+                      scene.add(mesh);
+                      camera.position.z = 100;
+                      animate();
+                  }});
+
+                  function animate() {{
+                      requestAnimationFrame(animate);
+                      controls.update();
+                      renderer.render(scene, camera);
+                  }}
+                </script>
+              </body>
+            </html>
+            """
+            components.html(html_string, height=550)
+
             # Üretim maliyetlerini hesapla
             results = []
             for name in final_filtered_composites:
