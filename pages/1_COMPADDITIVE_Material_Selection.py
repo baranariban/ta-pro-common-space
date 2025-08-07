@@ -838,7 +838,7 @@ with st.expander("💰 Calculate Mold Production Cost"):
     
     if uploaded_stl and final_filtered_composites:
         try:
-            mesh = trimesh.load(uploaded_stl, force='mesh')
+            mesh = trimesh.load(uploaded_stl, file_type='stl', force='mesh')
             volume_mm3 = mesh.volume
             volume_m3 = volume_mm3 * 1e-9
             bbox = mesh.bounding_box.extents
