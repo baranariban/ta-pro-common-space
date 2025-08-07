@@ -709,3 +709,14 @@ for name in passed_composites:  # sadece 3 kriteri geçenlerden filtrele
 
 # 🎯 Filtre sonrası sonucu tutalım (gösterim sonra)
 final_filtered_composites = filtered_composites
+
+# 🔎 Filtering sonucunu yazı olarak göster (tablo olmadan)
+
+st.markdown("---")
+st.markdown("### 🔎 **Filtering Passed Composites**")
+
+if final_filtered_composites:
+    st.success(f"{len(final_filtered_composites)} composites matched all selected filter conditions:")
+    st.markdown("**" + ", ".join(final_filtered_composites) + "**")
+else:
+    st.warning("❌ No composites matched the filtering criteria.")
