@@ -911,3 +911,29 @@ with st.expander("💰 Calculate Mold Production Cost"):
         except Exception as e:
             st.error(f"❌ Error reading STL file: {e}")
 
+# 🎯 Ranking skoru sıralaması
+scored_df["Score Rank"] = scored_df["Total Score"].rank(ascending=False)
+
+# 💰 Cost sıralaması
+results_df["Cost Rank"] = results_df["Estimated Production Cost (USD)"].rank(ascending=True)
+
+# 🧩 İki tabloyu composite ismine göre birleştir
+merged_df = pd.merge(
+    scored_df[["Composite", "Total Score", "Score Rank"]],
+    results_df[["Composite", "Estimated Production Cost (USD)", "Cost Rank"]],
+    on="Composite", how="inner"
+)
+
+# 🎖️ Son tabloyu göster
+st.markdown("### 🏆 Final Ranking — Score vs. Cost")
+
+st.dataframe(
+    merged_df[["Composite", "Total Score", "Estimated Production Cost (USD)", "Score Rank", "Cost Rank"]]\
+    .style.format({
+        "Total Score": "{:.1f}",
+        "Estimated Production Cost (USD)": "${:.2f}",
+        "Score Rank": "{:.0f}",
+        "Cost Rank": "{:.0f}"
+    }),
+    use_container_width=True
+)
