@@ -962,3 +962,46 @@ with st.expander("💰 Calculate Mold Production Cost"):
 
         except Exception as e:
             st.error(f"❌ Error reading STL file: {e}")
+
+# 🎯 Teknik skor sırası
+scored_df["Tech Rank"] = scored_df["Total Score"].rank(ascending=False)
+
+# 💰 Mold cost sırası
+results_df["Cost Rank"] = results_df["Estimated Production Cost (USD)"].rank(ascending=True)
+
+# 🧩 Birleştirme
+comparison_df = pd.merge(
+    scored_df[["Composite", "Total Score", "Tech Rank"]],
+    results_df[["Composite", "Estimated Production Cost (USD)", "Cost Rank"]],
+    on="Composite", how="inner"
+).sort_values(by="Tech Rank").reset_index(drop=True)
+
+# 🌟 Başlık
+st.markdown("### 🔍 Final Comparison: Technical Score vs. Production Cost")
+
+# 📊 Stilize gösterim
+styled_comparison = comparison_df.style\
+    .format({
+        "Total Score": "{:.1f}",
+        "Estimated Production Cost (USD)": "${:.2f}",
+        "Tech Rank": "{:.0f}",
+        "Cost Rank": "{:.0f}"
+    })\
+    .set_properties(**{
+        "text-align": "center",
+        "font-family": "Arial",
+        "background-color": "#111",
+        "color": "white",
+        "border-color": "#444"
+    })\
+    .set_table_styles([{
+        "selector": "th",
+        "props": [
+            ("text-align", "center"),
+            ("background-color", "#222"),
+            ("color", "white"),
+            ("font-size", "14px")
+        ]
+    }])
+
+st.dataframe(styled_comparison, use_container_width=True, height=400)
