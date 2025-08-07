@@ -57,7 +57,7 @@ def generate_excel_template():
         columns.append(f"{prop} max")
     df_template = pd.DataFrame(columns=columns)
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(output) as writer:
         df_template.to_excel(writer, index=False, sheet_name='Template')
     output.seek(0)
     return output
