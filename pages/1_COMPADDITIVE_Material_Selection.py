@@ -720,3 +720,107 @@ if final_filtered_composites:
     st.markdown("**" + ", ".join(final_filtered_composites) + "**")
 else:
     st.warning("❌ No composites matched the filtering criteria.")
+
+import plotly.graph_objects as go
+
+# 🎯 Ağırlık atama ve skor hesaplama bölümü
+if selected_filters and final_filtered_composites:
+    if st.button("🔢 Score and Rank Filtered Composites"):
+        st.subheader("⚖️ Set importance (weight) for each selected property")
+
+        weights = {}
+        total_weight = 0
+
+        for prop in selected_filters.keys():
+            weight = st.number_input(
+                f"Weight for '{prop}' (0–100)",
+                min_value=0,
+                max_value=100,
+                value=st.session_state.get(f"weight_{prop}", 0),
+                step=1,
+                key=f"weight_{prop}"
+            )
+            weights[prop] = weight
+            total_weight += weight
+
+        st.markdown(f"📊 **Total weight: {total_weight}/100**")
+
+        if total_weight != 100:
+            st.warning("⚠️ Total weight must be exactly 100 to proceed.")
+        else:
+            def evaluate_score(condition, user_val, min_val, max_val):
+                if user_val is None or min_val is None or max_val is None:
+                    return 0.0
+                if min_val == max_val:
+                    return 1.05 if user_val == min_val else max(0.0, 1 - abs(user_val - min_val) / abs(min_val))
+                range_val = max_val - min_val
+                center = (min_val + max_val) / 2
+                if condition == "smaller than":
+                    if user_val <= min_val:
+                        return 1.0
+                    elif user_val > max_val:
+                        return max(0.0, 1 - (user_val - max_val) / range_val)
+                    else:
+                        return 1 - (user_val - min_val) / range_val
+                elif condition == "larger than":
+                    if user_val >= max_val:
+                        return 1.0
+                    elif user_val < min_val:
+                        return max(0.0, 1 - (min_val - user_val) / range_val)
+                    else:
+                        return 1 - (max_val - user_val) / range_val
+                elif condition == "equal to":
+                    diff = abs(user_val - center)
+                    normalized = 1 - (diff / range_val)
+                    return 1.05 if diff == 0 else max(0.0, normalized)
+                return 0.0
+
+            # 🔢 Skorları hesapla
+            scores = {}
+            contribution_table = {}
+
+            for name in final_filtered_composites:
+                total_score = 0
+                contribution_table[name] = {}
+
+                for prop, (condition, user_val) in selected_filters.items():
+                    min_val, max_val = st.session_state.datasets[name].get(prop, (None, None))
+                    score = evaluate_score(condition, user_val, min_val, max_val)
+                    weight = weights[prop] / 100
+                    total_score += score * weight
+                    contribution_table[name][prop] = round(score * weight * 100, 2)
+
+                scores[name] = round(total_score * 100, 2)
+
+            # 🏆 Skorları sırala
+            sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+            st.subheader("🏆 Ranked Composites by Weighted Scoring")
+            for i, (name, score) in enumerate(sorted_scores, 1):
+                st.write(f"{i}. **{name}** — Score: {score:.2f} / 100")
+
+            # 📊 Stacked bar chart
+            if st.button("📊 Show Score Breakdown Chart"):
+                fig = go.Figure()
+                sorted_names = [k for k, _ in sorted_scores]
+                for prop in selected_filters.keys():
+                    y_vals = [contribution_table[name][prop] for name in sorted_names]
+                    hover_texts = [
+                        f"{prop}<br>Contribution: {contribution_table[name][prop]}<br>Weight: {weights[prop]}"
+                        for name in sorted_names
+                    ]
+                    fig.add_trace(go.Bar(
+                        name=prop,
+                        x=sorted_names,
+                        y=y_vals,
+                        hovertext=hover_texts,
+                        hoverinfo="text"
+                    ))
+                fig.update_layout(
+                    barmode='stack',
+                    xaxis_title="Composite",
+                    yaxis_title="Total Score (out of 100)",
+                    title="📊 Composite Score Breakdown",
+                    height=600
+                )
+                st.plotly_chart(fig, use_container_width=True)
