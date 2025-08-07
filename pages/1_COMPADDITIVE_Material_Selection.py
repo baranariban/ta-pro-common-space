@@ -546,3 +546,34 @@ elif option == "Upload dataset from Excel":
             st.session_state.datasets[name] = entry
         st.success("✅ All composites from Excel uploaded successfully.")
 
+# 📌 CANDIDATE COMPOSITES LİSTESİ VE DETAYLARI
+
+if st.session_state.datasets:
+    st.markdown("### 🧪 **Candidate Composites**:")
+    composite_names = list(st.session_state.datasets.keys())
+    st.markdown("**" + ", ".join(composite_names) + "**")
+
+    for name in composite_names:
+        with st.expander(f"📋 {name} — View Properties"):
+            data = st.session_state.datasets[name]
+            table_dict = {
+                "Property": [],
+                "Min": [],
+                "Max": []
+            }
+            for prop, val in data.items():
+                if val is None:
+                    table_dict["Property"].append(prop)
+                    table_dict["Min"].append("N/A")
+                    table_dict["Max"].append("N/A")
+                elif isinstance(val, tuple):
+                    table_dict["Property"].append(prop)
+                    table_dict["Min"].append(val[0])
+                    table_dict["Max"].append(val[1])
+                else:
+                    table_dict["Property"].append(prop)
+                    table_dict["Min"].append(val)
+                    table_dict["Max"].append(val)
+
+            df = pd.DataFrame(table_dict)
+            st.dataframe(df, use_container_width=True)
