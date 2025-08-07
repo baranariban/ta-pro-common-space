@@ -827,3 +827,54 @@ if selected_filters and final_filtered_composites:
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+import trimesh
+
+# 💰 MOLD COST ANALİZİ
+with st.expander("💰 Calculate Mold Production Cost"):
+    st.markdown("Upload your STL file below. The volume and dimensions will be extracted automatically.")
+
+    uploaded_stl = st.file_uploader("📦 Upload STL file", type=["stl"], key="stl_upload")
+    
+    if uploaded_stl and final_filtered_composites:
+        try:
+            mesh = trimesh.load(uploaded_stl, force='mesh')
+            volume_mm3 = mesh.volume
+            volume_m3 = volume_mm3 * 1e-9
+            bbox = mesh.bounding_box.extents
+            bbox_mm = [round(x, 2) for x in bbox]
+
+            st.success("✅ STL file successfully processed.")
+            st.markdown(f"**📐 Dimensions (mm)**: `{bbox_mm}`")
+            st.markdown(f"**📦 Volume (m³)**: `{volume_m3:.8f}`")
+
+            # Üretim maliyetlerini hesapla
+            results = []
+            for name in final_filtered_composites:
+                props = st.session_state.datasets[name]
+                cost_range = props.get("Cost (USD/kg)")
+                density_range = props.get("Density (kg/m³)")
+
+                if not isinstance(cost_range, tuple) or not isinstance(density_range, tuple):
+                    continue
+
+                avg_cost = sum(cost_range) / 2
+                avg_density = sum(density_range) / 2
+                mass = volume_m3 * avg_density
+                total_cost = mass * avg_cost
+
+                results.append({
+                    "Composite": name,
+                    "Average Density (kg/m³)": round(avg_density, 2),
+                    "Average Cost (USD/kg)": round(avg_cost, 2),
+                    "Estimated Mass (kg)": round(mass, 4),
+                    "Estimated Production Cost (USD)": round(total_cost, 2)
+                })
+
+            # 📊 Sonuçları göster
+            results_df = pd.DataFrame(results).sort_values(by="Estimated Production Cost (USD)")
+            st.markdown("### 💸 Estimated Mold Production Cost per Composite")
+            st.dataframe(results_df, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"❌ Error reading STL file: {e}")
