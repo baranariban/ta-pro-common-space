@@ -574,3 +574,80 @@ st.markdown("""
 2. The **cost of the composite** must be **at least 30% lower than the cost of Invar** in terms of **euro/m³**.  
 3. The **composite must not undergo plastic deformation** under **autoclave conditions (180°C and 7 bar)**.
 """)
+
+# --- Sabitler ---
+epoxy_cte = 50  # µstrain/°C
+usd_to_eur = 0.91
+invar_cost_usd_per_kg = 70
+invar_density = 8000
+invar_cost_eur_per_m3 = invar_cost_usd_per_kg * invar_density * usd_to_eur
+threshold_cost = invar_cost_eur_per_m3 * 0.70  # %30 daha düşük olması gerekir
+
+passed_composites = []
+
+for name, props in st.session_state.datasets.items():
+    # --- 1. KRİTER: CTE uyumu ---
+    cte_range = props.get("Coefficient of Thermal Expansion (CTE) (µstrain/°C)")
+    if not isinstance(cte_range, tuple):
+        continue
+    avg_cte = sum(cte_range) / 2
+    cte_lower = epoxy_cte * (1 - 0.6)
+    cte_upper = epoxy_cte * (1 + 0.6)
+    if not (cte_lower <= avg_cte <= cte_upper):
+        continue
+
+    # --- 2. KRİTER: Cost < Invar %30 ---
+    cost_range = props.get("Cost (USD/kg)")
+    density_range = props.get("Density (kg/m³)")
+    if not isinstance(cost_range, tuple) or not isinstance(density_range, tuple):
+        continue
+    avg_cost = sum(cost_range) / 2
+    avg_density = sum(density_range) / 2
+    cost_eur_per_m3 = avg_cost * avg_density * usd_to_eur
+    if cost_eur_per_m3 > threshold_cost:
+        continue
+
+    # --- 3. KRİTER: Otoklav deformasyon testi (interpolasyon) ---
+    hdt_a = props.get("Heat Deflection Temperature A (1.8 MPa) (°C)")
+    hdt_b = props.get("Heat Deflection Temperature B (0.46 MPa) (°C)")
+    if not isinstance(hdt_a, tuple) or not isinstance(hdt_b, tuple):
+        continue
+    avg_hdt_a = sum(hdt_a) / 2
+    avg_hdt_b = sum(hdt_b) / 2
+
+    try:
+        interpolated_temp = avg_hdt_b + ((0.7 - 0.46) / (1.8 - 0.46)) * (avg_hdt_a - avg_hdt_b)
+    except:
+        continue
+
+    if interpolated_temp < 180:
+        continue
+
+    # 🎯 Tüm kriterlerden geçti
+    passed_composites.append(name)
+
+# --- Sonuçları Göster ---
+st.markdown("---")
+st.markdown("### ✅ **Pre-Screening Passed Composites**")
+
+if passed_composites:
+    st.success(f"{len(passed_composites)} composites passed all three criteria:")
+    st.markdown("**" + ", ".join(passed_composites) + "**")
+
+    # 📊 Geçenleri tabloda göster
+    filtered_data = {}
+    for name in passed_composites:
+        filtered_data[name] = {}
+        for prop in properties:
+            val = st.session_state.datasets[name].get(prop)
+            if val is None:
+                filtered_data[name][prop] = "N/A"
+            elif isinstance(val, tuple):
+                filtered_data[name][prop] = f"{val[0]} – {val[1]}"
+            else:
+                filtered_data[name][prop] = str(val)
+    
+    df_passed = pd.DataFrame(filtered_data)
+    st.dataframe(df_passed, use_container_width=True)
+else:
+    st.warning("❌ No composites passed all three pre-screening criteria.")
