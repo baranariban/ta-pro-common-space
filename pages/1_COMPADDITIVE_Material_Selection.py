@@ -546,34 +546,22 @@ elif option == "Upload dataset from Excel":
             st.session_state.datasets[name] = entry
         st.success("✅ All composites from Excel uploaded successfully.")
 
-# 📌 CANDIDATE COMPOSITES LİSTESİ VE DETAYLARI
+# 📌 CANDIDATE COMPOSITES — Tüm kompozitleri yatay tabloda göster
 
 if st.session_state.datasets:
-    st.markdown("### 🧪 **Candidate Composites**:")
-    composite_names = list(st.session_state.datasets.keys())
-    st.markdown("**" + ", ".join(composite_names) + "**")
+    st.markdown("### 🧪 **Candidate Composites**")
 
-    for name in composite_names:
-        with st.expander(f"📋 {name} — View Properties"):
-            data = st.session_state.datasets[name]
-            table_dict = {
-                "Property": [],
-                "Min": [],
-                "Max": []
-            }
-            for prop, val in data.items():
-                if val is None:
-                    table_dict["Property"].append(prop)
-                    table_dict["Min"].append("N/A")
-                    table_dict["Max"].append("N/A")
-                elif isinstance(val, tuple):
-                    table_dict["Property"].append(prop)
-                    table_dict["Min"].append(val[0])
-                    table_dict["Max"].append(val[1])
-                else:
-                    table_dict["Property"].append(prop)
-                    table_dict["Min"].append(val)
-                    table_dict["Max"].append(val)
+    all_data = {}
+    for name, prop_dict in st.session_state.datasets.items():
+        all_data[name] = {}
+        for prop in properties:
+            val = prop_dict.get(prop)
+            if val is None:
+                all_data[name][prop] = "N/A"
+            elif isinstance(val, tuple):
+                all_data[name][prop] = f"{val[0]} – {val[1]}"
+            else:
+                all_data[name][prop] = str(val)
 
-            df = pd.DataFrame(table_dict)
-            st.dataframe(df, use_container_width=True)
+    df = pd.DataFrame(all_data)
+    st.dataframe(df, use_container_width=True)
