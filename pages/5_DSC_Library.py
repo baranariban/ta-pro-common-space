@@ -123,7 +123,6 @@ if not meta_df.empty:
     # -----------------
     # RAW DATA OKUMA
     # -----------------
-    # Bazı DSC txt'lerinde header uzun olabilir; orijinal deneyimde 56. satırdan başlatılmıştı.
     def load_dsc_txt(path, header_skip=56):
         with open(path, "r", encoding="latin1") as f:
             lines = f.readlines()
@@ -135,12 +134,11 @@ if not meta_df.empty:
                     data.append([float(parts[0]), float(parts[1]), float(parts[2])])
                 except:
                     pass
-        return pd.DataFrame(data, columns=["Time_min", "Temperature_C", "HeatFlow_mW"])
+        return pd.DataFrame(data, columns=["Time (min)", "Temperature (°C)", "Heat Flow (mW)"])
 
     dsc_df = load_dsc_txt(file_path, header_skip=56)
 
-    st.markdown("**📋 Raw Data (all rows)**")
-    # TÜM SATIRLAR: head() KALDIRILDI
+    st.markdown("**📋 Raw Data**")
     st.dataframe(dsc_df, use_container_width=True)
 
     # -----------------
@@ -148,7 +146,7 @@ if not meta_df.empty:
     # -----------------
     st.subheader("📊 DSC Curve")
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(dsc_df["Temperature_C"], dsc_df["HeatFlow_mW"], label=file_row["custom_name"])
+    ax.plot(dsc_df["Temperature (°C)"], dsc_df["Heat Flow (mW)"], label=file_row["custom_name"])
     ax.set_xlabel("Temperature (°C)")
     ax.set_ylabel("Heat Flow (mW)")
     ax.legend()
@@ -156,17 +154,17 @@ if not meta_df.empty:
     st.pyplot(fig)
 
     # -----------------
-    # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik) — TÜM VERİYE GÖRE
+    # ANALİZ
     # -----------------
     if len(dsc_df) >= 5:
-        T = dsc_df["Temperature_C"].values
-        hf = dsc_df["HeatFlow_mW"].values
+        T = dsc_df["Temperature (°C)"].values
+        hf = dsc_df["Heat Flow (mW)"].values
 
         # Smoothing
         window = 101 if len(hf) >= 101 else (max(3, (len(hf) // 2) * 2 + 1))
         hf_s = savgol_filter(hf, window_length=window, polyorder=3)
 
-        # Tg (eğim değişimi ~80-200°C aralığında)
+        # Tg
         mask_tg = (T >= 80) & (T <= 200)
         Tg = np.nan
         try:
@@ -177,7 +175,7 @@ if not meta_df.empty:
         except Exception:
             Tg = np.nan
 
-        # Tc (ekzotermik pik ~200-360°C)
+        # Tc
         Tc = np.nan
         try:
             mask_tc = (T >= 200) & (T <= 360)
@@ -188,7 +186,7 @@ if not meta_df.empty:
         except Exception:
             Tc = np.nan
 
-        # Tm (endotermik pik ~330-420°C)
+        # Tm
         Tm = np.nan
         try:
             mask_tm = (T >= 330) & (T <= 420)
@@ -199,9 +197,9 @@ if not meta_df.empty:
         except Exception:
             Tm = np.nan
 
-        # Enthalpi (J/g) hesapları
-        sample_mass_mg = 5.471      # gerekirse UI'dan parametreleştirilebilir
-        heating_rate = 10.0         # °C/min varsayımı
+        # Enthalpi hesapları
+        sample_mass_mg = 5.471
+        heating_rate = 10.0
 
         def integrate_peak(Tv, yv, T_left, T_right, mass_mg, heat_rate_c_per_min):
             if np.isnan(T_left) or np.isnan(T_right):
@@ -210,11 +208,9 @@ if not meta_df.empty:
             Tw, yw = Tv[m], yv[m]
             if len(Tw) < 3:
                 return np.nan
-            # Baseline: uçları birleştir
             baseline = np.interp(Tw, [Tw[0], Tw[-1]], [yw[0], yw[-1]])
             ycorr = yw - baseline
             beta_c_per_s = heat_rate_c_per_min / 60.0
-            # ∫(mW) dT  / (°C/s)  => mJ
             area_mJ = np.trapz(ycorr, Tw) / beta_c_per_s
             area_J = area_mJ / 1000.0
             mass_g = mass_mg / 1000.0
@@ -223,10 +219,8 @@ if not meta_df.empty:
         dH_cc = integrate_peak(T, hf_s, Tc - 15, Tc + 15, sample_mass_mg, heating_rate) if not np.isnan(Tc) else np.nan
         dH_m  = integrate_peak(T, hf_s, Tm - 15, Tm + 15, sample_mass_mg, heating_rate) if not np.isnan(Tm) else np.nan
 
-        # Erime endotermik (grafikte aşağı yönde): işaret düzeltme
         dH_melting = -dH_m if not np.isnan(dH_m) else np.nan
 
-        # ΔH_fus° (PEKK/PEEK için yaklaşık 130 J/g) üzerinden kristallik
         cryst_pct = np.nan
         if not np.isnan(dH_melting) and not np.isnan(dH_cc):
             cryst_pct = (dH_melting - dH_cc) / 130.0 * 100.0
@@ -244,4 +238,3 @@ if not meta_df.empty:
         st.json(results)
     else:
         st.warning("Not enough data points to analyze.")
-
