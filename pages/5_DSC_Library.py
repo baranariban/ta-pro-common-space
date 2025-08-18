@@ -68,9 +68,9 @@ else:
 
     # Başlık satırı
     hdr = st.columns([5, 5, 4, 2])
-    hdr[0].markdown("**File name**")
-    hdr[1].markdown("**Custom name**")
-    hdr[2].markdown("**Upload time**")
+    hdr[0].markdown("**File Name**")
+    hdr[1].markdown("**Custom Name**")
+    hdr[2].markdown("**Upload Time**")
     hdr[3].markdown("**Delete**")
 
     # Satırlar (TEK tablo görünümünde, ayrı bir dataframe GÖSTERİLMİYOR)
@@ -238,3 +238,4 @@ if not meta_df.empty:
         st.json(results)
     else:
         st.warning("Not enough data points to analyze.")
+
