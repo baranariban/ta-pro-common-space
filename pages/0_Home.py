@@ -12,9 +12,9 @@ page = st.sidebar.radio("📁 Navigation", [
     "COMPADDITIVE Literature Reviewer",
     "CREDIT Literature Reviewer",
     "Tensile Test Library",
-    "Fatigue Test Library",
     "DSC Library",
     "SEM & EDS Library",
+    "Fatigue Test Library",
     "Production Tracker"
 ])
 
@@ -22,23 +22,20 @@ page = st.sidebar.radio("📁 Navigation", [
 if page == "COMPADDITIVE Material Selection":
     st.switch_page("pages/1_COMPADDITIVE_Material_Selection.py")
 
-elif page == "CREDIT Material Selection":
-    st.switch_page("pages/2_CREDIT_Material_Selection.py")
-
 elif page == "COMPADDITIVE Literature Reviewer":
     st.switch_page("pages/3_COMPADDITIVE_Literature_Reviewer.py")
 
 elif page == "CREDIT Literature Reviewer":
     st.switch_page("pages/4_CREDIT_Literature_Reviewer.py")
 
-elif page == "COMPADDITIVE Meeting Notes":
-    st.switch_page("pages/5_COMPADDITIVE_Meeting_Notes.py")
-
-elif page == "CREDIT Meeting Notes":
-    st.switch_page("pages/6_CREDIT_Meeting_Notes.py")
-
 elif page == "Tensile Test Library":
     st.switch_page("pages/7_Tensile_Test_Library.py")
+
+elif page == "DSC Library":
+    st.switch_page("pages/8_1_DSC Library.py")
+
+elif page == "SEM & EDS Library":
+    st.switch_page("pages/8_2_SEM & EDS Library.py")
 
 elif page == "Fatigue Test Library":
     st.switch_page("pages/8_Fatigue_Test_Library.py")
