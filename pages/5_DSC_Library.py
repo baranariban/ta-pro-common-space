@@ -6,6 +6,7 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import savgol_filter, find_peaks
+import io
 
 # ✅ Kullanıcı giriş kontrolü
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
@@ -141,8 +142,33 @@ if not meta_df.empty:
 
     dsc_df = load_dsc_txt(file_path, header_skip=56)
 
+    # -----------------
+    # RAW DATA GÖSTERİM + XLSX İNDİRME
+    # -----------------
     st.markdown("**📋 Raw Data**")
     st.dataframe(dsc_df, use_container_width=True)
+
+    # 📥 Excel (.xlsx) indirme (CSV değil, “virgüllü değil”)
+    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(file_row["custom_name"]))
+    excel_buffer = io.BytesIO()
+    excel_bytes = None
+    try:
+        with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+            dsc_df.to_excel(writer, index=False, sheet_name="DSC Raw Data")
+        excel_bytes = excel_buffer.getvalue()
+    except Exception:
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            dsc_df.to_excel(writer, index=False, sheet_name="DSC Raw Data")
+        excel_bytes = excel_buffer.getvalue()
+
+    st.download_button(
+        "⬇️ Download Raw Data (.xlsx)",
+        data=excel_bytes,
+        file_name=f"{safe_name}_raw_data.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=f"dl_xlsx_{file_row['file_name']}",
+    )
 
     # -----------------
     # GRAFİK
@@ -154,6 +180,19 @@ if not meta_df.empty:
     ax.set_ylabel("Heat Flow (mW)")
     ax.legend()
     ax.grid(True)
+
+    # 📥 Grafik PNG indirme
+    png_buffer = io.BytesIO()
+    fig.savefig(png_buffer, format="png", dpi=300, bbox_inches="tight")
+    png_bytes = png_buffer.getvalue()
+    st.download_button(
+        "⬇️ Download DSC Curve (.png)",
+        data=png_bytes,
+        file_name=f"{safe_name}_dsc_curve.png",
+        mime="image/png",
+        key=f"dl_png_{file_row['file_name']}",
+    )
+
     st.pyplot(fig)
 
     # -----------------
@@ -240,7 +279,6 @@ if not meta_df.empty:
                 return "—"
             return f"{val} {unit}".strip()
 
-        # Kartlar
         c1, c2, c3 = st.columns(3)
         c1.metric("Tg", fmt(None if np.isnan(Tg) else round(Tg, 1), "°C"))
         c2.metric("Tc", fmt(None if np.isnan(Tc) else round(Tc, 1), "°C"))
@@ -250,7 +288,5 @@ if not meta_df.empty:
         c4.metric("ΔH (cold crystallization)", fmt(None if np.isnan(dH_cc) else round(dH_cc, 2), "J/g"))
         c5.metric("ΔH (melting)", fmt(None if np.isnan(dH_melting) else round(dH_melting, 2), "J/g"))
         c6.metric("Crystallinity", fmt(None if np.isnan(cryst_pct) else round(cryst_pct, 1), "%"))
-
     else:
         st.warning("Not enough data points to analyze.")
-
