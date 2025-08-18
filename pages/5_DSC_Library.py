@@ -73,9 +73,9 @@ else:
 
     # Başlık satırı
     hdr = st.columns([5, 5, 4, 2])
-    hdr[0].markdown("**File name**")
-    hdr[1].markdown("**Custom name**")
-    hdr[2].markdown("**Upload time**")
+    hdr[0].markdown("**File Name**")
+    hdr[1].markdown("**Custom Name**")
+    hdr[2].markdown("**Upload Time**")
     hdr[3].markdown("**Delete**")
 
     # Satırlar (TEK tablo görünümünde)
@@ -123,7 +123,7 @@ if not meta_df.empty:
     # -----------------
     # RAW DATA OKUMA
     # -----------------
-    # Bazı DSC txt'lerinde header uzun olabilir; orijinal deneyimde 56. satırdan başlatılmıştı.
+    # Bazı DSC txt'lerinde header uzun olabilir; deneyimde 56. satırdan başlatılmıştı.
     def load_dsc_txt(path, header_skip=56):
         with open(path, "r", encoding="latin1") as f:
             lines = f.readlines()
@@ -135,12 +135,13 @@ if not meta_df.empty:
                     data.append([float(parts[0]), float(parts[1]), float(parts[2])])
                 except:
                     pass
-        return pd.DataFrame(data, columns=["Time_min", "Temperature_C", "HeatFlow_mW"])
+        # Bilimsel sütun adlarıyla DataFrame döndür
+        df = pd.DataFrame(data, columns=["Time (min)", "Temperature (°C)", "Heat Flow (mW)"])
+        return df
 
     dsc_df = load_dsc_txt(file_path, header_skip=56)
 
     st.markdown("**📋 Raw Data**")
-    # TÜM SATIRLAR
     st.dataframe(dsc_df, use_container_width=True)
 
     # -----------------
@@ -148,7 +149,7 @@ if not meta_df.empty:
     # -----------------
     st.subheader("📊 DSC Curve")
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(dsc_df["Temperature_C"], dsc_df["HeatFlow_mW"], label=file_row["custom_name"])
+    ax.plot(dsc_df["Temperature (°C)"], dsc_df["Heat Flow (mW)"], label=file_row["custom_name"])
     ax.set_xlabel("Temperature (°C)")
     ax.set_ylabel("Heat Flow (mW)")
     ax.legend()
@@ -159,14 +160,14 @@ if not meta_df.empty:
     # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik)
     # -----------------
     if len(dsc_df) >= 5:
-        T = dsc_df["Temperature_C"].values
-        hf = dsc_df["HeatFlow_mW"].values
+        T = dsc_df["Temperature (°C)"].values
+        hf = dsc_df["Heat Flow (mW)"].values
 
         # Smoothing
         window = 101 if len(hf) >= 101 else (max(3, (len(hf) // 2) * 2 + 1))
         hf_s = savgol_filter(hf, window_length=window, polyorder=3)
 
-        # Tg (eğim değişimi ~80-200°C aralığında)
+        # Tg (eğim değişimi ~80–200 °C aralığında)
         mask_tg = (T >= 80) & (T <= 200)
         Tg = np.nan
         try:
@@ -177,7 +178,7 @@ if not meta_df.empty:
         except Exception:
             Tg = np.nan
 
-        # Tc (ekzotermik pik ~200-360°C)
+        # Tc (ekzotermik pik ~200–360 °C)
         Tc = np.nan
         try:
             mask_tc = (T >= 200) & (T <= 360)
@@ -188,7 +189,7 @@ if not meta_df.empty:
         except Exception:
             Tc = np.nan
 
-        # Tm (endotermik pik ~330-420°C)
+        # Tm (endotermik pik ~330–420 °C)
         Tm = np.nan
         try:
             mask_tm = (T >= 330) & (T <= 420)
@@ -231,7 +232,7 @@ if not meta_df.empty:
         if not np.isnan(dH_melting) and not np.isnan(dH_cc):
             cryst_pct = (dH_melting - dH_cc) / 130.0 * 100.0
 
-        # ======= SONUÇ GÖSTERİMİ (METRIC KARTLAR + ÖZET TABLO) =======
+        # ======= SONUÇ GÖSTERİMİ: METRIC KARTLAR =======
         st.subheader("📑 Calculated Results")
 
         def fmt(val, unit=""):
@@ -239,35 +240,17 @@ if not meta_df.empty:
                 return "—"
             return f"{val} {unit}".strip()
 
-        # Kart 1: Tg, Kart 2: Tc, Kart 3: Tm
+        # Kartlar
         c1, c2, c3 = st.columns(3)
         c1.metric("Tg", fmt(None if np.isnan(Tg) else round(Tg, 1), "°C"))
         c2.metric("Tc", fmt(None if np.isnan(Tc) else round(Tc, 1), "°C"))
         c3.metric("Tm", fmt(None if np.isnan(Tm) else round(Tm, 1), "°C"))
 
-        # Kart 4: ΔHcc, Kart 5: ΔHm, Kart 6: Kristallik
         c4, c5, c6 = st.columns(3)
         c4.metric("ΔH (cold crystallization)", fmt(None if np.isnan(dH_cc) else round(dH_cc, 2), "J/g"))
         c5.metric("ΔH (melting)", fmt(None if np.isnan(dH_melting) else round(dH_melting, 2), "J/g"))
         c6.metric("Crystallinity", fmt(None if np.isnan(cryst_pct) else round(cryst_pct, 1), "%"))
 
-        # Özet tablo + indir
-        summary = {
-            "Tg (°C)": None if np.isnan(Tg) else round(Tg, 1),
-            "Tc (°C)": None if np.isnan(Tc) else round(Tc, 1),
-            "Tm (°C)": None if np.isnan(Tm) else round(Tm, 1),
-            "ΔH_cold_cryst (J/g)": None if np.isnan(dH_cc) else round(dH_cc, 2),
-            "ΔH_melting (J/g)": None if np.isnan(dH_melting) else round(dH_melting, 2),
-            "Crystallinity (%)": None if np.isnan(cryst_pct) else round(cryst_pct, 1),
-        }
-        st.markdown("**Summary**")
-        summary_df = pd.DataFrame([summary])
-        st.dataframe(summary_df, use_container_width=True)
-        st.download_button(
-            "⬇️ Download results (.csv)",
-            data=summary_df.to_csv(index=False).encode("utf-8"),
-            file_name=f"dsc_results_{file_row['custom_name'].replace(' ','_')}.csv",
-            mime="text/csv",
-        )
     else:
         st.warning("Not enough data points to analyze.")
+
