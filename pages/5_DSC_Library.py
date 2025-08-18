@@ -40,6 +40,10 @@ if uploaded_file is not None and st.button("Save Upload"):
         "uploaded_by": current_user,
         "upload_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
+   
+    if current_user == "unknown":
+        st.warning("Logged-in username not found in session. Please ensure login sets st.session_state['username'].")
+
     meta_df = pd.concat([meta_df, pd.DataFrame([new_entry])], ignore_index=True)
     meta_df.to_csv(META_FILE, index=False)
     st.success(f"File {uploaded_file.name} uploaded successfully!")
@@ -48,8 +52,46 @@ if uploaded_file is not None and st.button("Save Upload"):
 # 2) YÜKLENEN DOSYALAR TABLOSU
 # =============================
 st.subheader("📂 Uploaded DSC Files")
-st.dataframe(meta_df)
+st.dataframe(meta_df, use_container_width=True)
 
+# --- Row-wise delete UI ---
+if not meta_df.empty:
+    st.caption("Click Delete to remove a file and its record.")
+    header_cols = st.columns([4,4,2,3,1])
+    header_cols[0].markdown("**file_name**")
+    header_cols[1].markdown("**custom_name**")
+    header_cols[2].markdown("**uploaded_by**")
+    header_cols[3].markdown("**upload_time**")
+    header_cols[4].markdown("**Delete**")
+
+    # We iterate over a copy with reset_index to safely map rows
+    for _, row in meta_df.reset_index().iterrows():
+        cols = st.columns([4,4,2,3,1])
+        cols[0].write(row["file_name"])
+        cols[1].write(row["custom_name"])
+        cols[2].write(row["uploaded_by"])
+        cols[3].write(row["upload_time"])
+
+        # unique key per row
+        if cols[4].button("Delete", key=f"del_{row['file_name']}"):
+            # 1) Delete the physical file if exists
+            try:
+                file_to_delete = os.path.join(UPLOAD_DIR, row["file_name"])
+                if os.path.exists(file_to_delete):
+                    os.remove(file_to_delete)
+            except Exception as e:
+                st.error(f"File delete error: {e}")
+
+            # 2) Remove from metadata (match by file_name & custom_name for safety)
+            try:
+                mask = (meta_df["file_name"] == row["file_name"]) & (meta_df["custom_name"] == row["custom_name"])
+                meta_df = meta_df.loc[~mask].reset_index(drop=True)
+                meta_df.to_csv(META_FILE, index=False)
+                st.success(f"Deleted: {row['file_name']}")
+            except Exception as e:
+                st.error(f"Metadata update error: {e}")
+
+            st.rerun()
 # =============================
 # 3) DOSYA SEÇİMİ
 # =============================
@@ -148,3 +190,4 @@ if not meta_df.empty:
 
         st.subheader("📑 Calculated Results")
         st.json(results)
+
