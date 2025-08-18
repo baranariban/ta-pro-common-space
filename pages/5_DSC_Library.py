@@ -68,12 +68,12 @@ else:
 
     # Başlık satırı
     hdr = st.columns([5, 5, 4, 2])
-    hdr[0].markdown("**File Name**")
-    hdr[1].markdown("**Custom Name**")
-    hdr[2].markdown("**Upload Time**")
+    hdr[0].markdown("**File name**")
+    hdr[1].markdown("**Custom name**")
+    hdr[2].markdown("**Upload time**")
     hdr[3].markdown("**Delete**")
 
-    # Satırlar (TEK tablo görünümünde, ayrı bir dataframe GÖSTERİLMİYOR)
+    # Satırlar (TEK tablo görünümünde)
     for idx, row in view_df.reset_index().iterrows():
         cols = st.columns([5, 5, 4, 2])
         cols[0].write(row["file_name"])
@@ -118,7 +118,7 @@ if not meta_df.empty:
     # -----------------
     # RAW DATA OKUMA
     # -----------------
-    # Bazı DSC txt'lerinde header uzun olabilir; orijinal kodda 56. satırdan başlatılmıştı.
+    # Bazı DSC txt'lerinde header uzun olabilir; orijinal deneyimde 56. satırdan başlatılmıştı.
     def load_dsc_txt(path, header_skip=56):
         with open(path, "r", encoding="latin1") as f:
             lines = f.readlines()
@@ -134,8 +134,9 @@ if not meta_df.empty:
 
     dsc_df = load_dsc_txt(file_path, header_skip=56)
 
-    st.markdown("**📋 Raw Data (first 100 rows)**")
-    st.dataframe(dsc_df.head(100), use_container_width=True)
+    st.markdown("**📋 Raw Data (all rows)**")
+    # TÜM SATIRLAR: head() KALDIRILDI
+    st.dataframe(dsc_df, use_container_width=True)
 
     # -----------------
     # GRAFİK
@@ -150,7 +151,7 @@ if not meta_df.empty:
     st.pyplot(fig)
 
     # -----------------
-    # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik)
+    # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik) — TÜM VERİYE GÖRE
     # -----------------
     if len(dsc_df) >= 5:
         T = dsc_df["Temperature_C"].values
@@ -194,8 +195,8 @@ if not meta_df.empty:
             Tm = np.nan
 
         # Enthalpi (J/g) hesapları
-        sample_mass_mg = 5.471
-        heating_rate = 10.0  # °C/min varsayımı
+        sample_mass_mg = 5.471      # gerekirse UI'dan parametreleştirilebilir
+        heating_rate = 10.0         # °C/min varsayımı
 
         def integrate_peak(Tv, yv, T_left, T_right, mass_mg, heat_rate_c_per_min):
             if np.isnan(T_left) or np.isnan(T_right):
@@ -234,8 +235,7 @@ if not meta_df.empty:
             "Crystallinity (%)": None if np.isnan(cryst_pct) else round(cryst_pct, 1),
         }
 
-        st.subheader("📑 Calculated Results")
+        st.subheader("📑 Calculated Results (full dataset)")
         st.json(results)
     else:
         st.warning("Not enough data points to analyze.")
-
