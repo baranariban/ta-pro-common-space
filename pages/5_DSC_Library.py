@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import savgol_filter, find_peaks
 
+# ✅ Kullanıcı giriş kontrolü
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.error("🔒 You must be logged in to access this page.")
+    st.stop()
+
 st.set_page_config(page_title="DSC Library", page_icon="🔬", layout="wide")
 st.title("🔬 DSC Library")
 
@@ -239,3 +244,4 @@ if not meta_df.empty:
         st.json(results)
     else:
         st.warning("Not enough data points to analyze.")
+
