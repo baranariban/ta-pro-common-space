@@ -9,13 +9,12 @@ st.title("🏠 Welcome to TA & PRO Common Space")
 # Yan menüdeki seçenekler
 page = st.sidebar.radio("📁 Navigation", [
     "COMPADDITIVE Material Selection",
-    "CREDIT Material Selection",
     "COMPADDITIVE Literature Reviewer",
     "CREDIT Literature Reviewer",
-    "COMPADDITIVE Meeting Notes",
-    "CREDIT Meeting Notes",
     "Tensile Test Library",
     "Fatigue Test Library",
+    "DSC Library",
+    "SEM & EDS Library",
     "Production Tracker"
 ])
 
