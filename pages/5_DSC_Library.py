@@ -1,7 +1,7 @@
+# 5_DSC_Library.py
 import streamlit as st
 import pandas as pd
 import os
-import io
 import datetime
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +10,7 @@ from scipy.signal import savgol_filter, find_peaks
 st.set_page_config(page_title="DSC Library", page_icon="🔬", layout="wide")
 st.title("🔬 DSC Library")
 
+# Oturumdan kullanıcı adı çekiyoruz; görünmeyecek (sadece kayıtta tutulabilir)
 current_user = st.session_state.get("username", "unknown")
 
 # 📁 Kalıcı kayıt dosyaları
@@ -17,72 +18,77 @@ UPLOAD_DIR = "dsc_uploads"
 META_FILE = "dsc_uploads_metadata.csv"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# Metadata şeması (uploaded_by tutulabilir fakat GÖSTERİLMEYECEK)
+META_COLUMNS = ["file_name", "custom_name", "uploaded_by", "upload_time"]
+
 if os.path.exists(META_FILE):
     meta_df = pd.read_csv(META_FILE)
+    # Eksik sütun varsa tamamla
+    for col in META_COLUMNS:
+        if col not in meta_df.columns:
+            meta_df[col] = "" if col != "upload_time" else None
+    meta_df = meta_df[META_COLUMNS]
 else:
-    meta_df = pd.DataFrame(columns=["file_name", "custom_name", "uploaded_by", "upload_time"])
+    meta_df = pd.DataFrame(columns=META_COLUMNS)
 
 # =============================
 # 1) DOSYA YÜKLEME
 # =============================
 st.subheader("📤 Upload DSC Raw Data")
-uploaded_file = st.file_uploader("Upload your DSC .txt file", type=["txt"])
-custom_name = st.text_input("Custom name for this file")
+uploaded_file = st.file_uploader("Upload your DSC .txt file", type=["txt"], key="dsc_uploader")
+custom_name = st.text_input("Custom name for this file", key="dsc_custom_name")
 
-if uploaded_file is not None and st.button("Save Upload"):
+if uploaded_file is not None and st.button("Save Upload", type="primary"):
     save_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
     with open(save_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
     new_entry = {
         "file_name": uploaded_file.name,
-        "custom_name": custom_name if custom_name else uploaded_file.name,
-        "uploaded_by": current_user,
-        "upload_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "custom_name": custom_name.strip() if custom_name else uploaded_file.name,
+        "uploaded_by": current_user,  # kayıtta kalsın ama gösterilmeyecek
+        "upload_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-   
-    if current_user == "unknown":
-        st.warning("Logged-in username not found in session. Please ensure login sets st.session_state['username'].")
 
     meta_df = pd.concat([meta_df, pd.DataFrame([new_entry])], ignore_index=True)
     meta_df.to_csv(META_FILE, index=False)
-    st.success(f"File {uploaded_file.name} uploaded successfully!")
+    st.success(f"✅ File '{uploaded_file.name}' uploaded and saved.")
+    st.rerun()
 
 # =============================
-# 2) YÜKLENEN DOSYALAR TABLOSU
+# 2) YÜKLENEN DOSYALAR — TEK TABLO (SİLİNEBİLİR)
 # =============================
 st.subheader("📂 Uploaded DSC Files")
-st.dataframe(meta_df, use_container_width=True)
 
-# --- Row-wise delete UI ---
-if not meta_df.empty:
-    st.caption("Click Delete to remove a file and its record.")
-    header_cols = st.columns([4,4,2,3,1])
-    header_cols[0].markdown("**file_name**")
-    header_cols[1].markdown("**custom_name**")
-    header_cols[2].markdown("**uploaded_by**")
-    header_cols[3].markdown("**upload_time**")
-    header_cols[4].markdown("**Delete**")
+if meta_df.empty:
+    st.info("No files uploaded yet.")
+else:
+    # Sadece görünsün istenen sütunlar (uploaded_by YOK)
+    view_df = meta_df[["file_name", "custom_name", "upload_time"]].copy()
 
-    # We iterate over a copy with reset_index to safely map rows
-    for _, row in meta_df.reset_index().iterrows():
-        cols = st.columns([4,4,2,3,1])
+    # Başlık satırı
+    hdr = st.columns([5, 5, 4, 2])
+    hdr[0].markdown("**File name**")
+    hdr[1].markdown("**Custom name**")
+    hdr[2].markdown("**Upload time**")
+    hdr[3].markdown("**Delete**")
+
+    # Satırlar (TEK tablo görünümünde, ayrı bir dataframe GÖSTERİLMİYOR)
+    for idx, row in view_df.reset_index().iterrows():
+        cols = st.columns([5, 5, 4, 2])
         cols[0].write(row["file_name"])
         cols[1].write(row["custom_name"])
-        cols[2].write(row["uploaded_by"])
-        cols[3].write(row["upload_time"])
-
-        # unique key per row
-        if cols[4].button("Delete", key=f"del_{row['file_name']}"):
-            # 1) Delete the physical file if exists
+        cols[2].write(row["upload_time"])
+        if cols[3].button("🗑️ Delete", key=f"del_{row['file_name']}"):
+            # Fiziksel dosyayı sil
             try:
-                file_to_delete = os.path.join(UPLOAD_DIR, row["file_name"])
-                if os.path.exists(file_to_delete):
-                    os.remove(file_to_delete)
+                fp = os.path.join(UPLOAD_DIR, row["file_name"])
+                if os.path.exists(fp):
+                    os.remove(fp)
             except Exception as e:
                 st.error(f"File delete error: {e}")
 
-            # 2) Remove from metadata (match by file_name & custom_name for safety)
+            # Metadata'dan çıkar
             try:
                 mask = (meta_df["file_name"] == row["file_name"]) & (meta_df["custom_name"] == row["custom_name"])
                 meta_df = meta_df.loc[~mask].reset_index(drop=True)
@@ -92,102 +98,143 @@ if not meta_df.empty:
                 st.error(f"Metadata update error: {e}")
 
             st.rerun()
+
 # =============================
-# 3) DOSYA SEÇİMİ
+# 3) DOSYA SEÇİMİ + GÖRÜNTÜLEME
 # =============================
 if not meta_df.empty:
-    selected_file = st.selectbox("Select a file to analyze", meta_df["custom_name"])
-    file_row = meta_df[meta_df["custom_name"] == selected_file].iloc[0]
+    st.markdown("---")
+    st.subheader("🔎 Analyze a File")
+
+    # Kullanıcı pohodaki adıyla seçsin
+    selected_custom = st.selectbox("Select a file to analyze", meta_df["custom_name"].tolist())
+    file_row = meta_df.loc[meta_df["custom_name"] == selected_custom].iloc[0]
     file_path = os.path.join(UPLOAD_DIR, file_row["file_name"])
 
-    if os.path.exists(file_path):
-        # -----------------
-        # RAW DATA OKUMA
-        # -----------------
-        with open(file_path, "r", encoding="latin1") as f:
-            lines = f.readlines()
+    if not os.path.exists(file_path):
+        st.error("Selected file is missing on disk.")
+        st.stop()
 
+    # -----------------
+    # RAW DATA OKUMA
+    # -----------------
+    # Bazı DSC txt'lerinde header uzun olabilir; orijinal kodda 56. satırdan başlatılmıştı.
+    def load_dsc_txt(path, header_skip=56):
+        with open(path, "r", encoding="latin1") as f:
+            lines = f.readlines()
         data = []
-        for line in lines[56:]:
+        for line in lines[header_skip:]:
             parts = line.strip().split()
             if len(parts) == 3:
                 try:
                     data.append([float(parts[0]), float(parts[1]), float(parts[2])])
                 except:
                     pass
+        return pd.DataFrame(data, columns=["Time_min", "Temperature_C", "HeatFlow_mW"])
 
-        dsc_df = pd.DataFrame(data, columns=["Time_min", "Temperature_C", "HeatFlow_mW"])
+    dsc_df = load_dsc_txt(file_path, header_skip=56)
 
-        st.subheader("📋 Raw Data")
-        st.dataframe(dsc_df.head(100))  # ilk 100 satır gösterelim
+    st.markdown("**📋 Raw Data (first 100 rows)**")
+    st.dataframe(dsc_df.head(100), use_container_width=True)
 
-        # -----------------
-        # GRAFİK
-        # -----------------
-        st.subheader("📊 DSC Curve")
-        fig, ax = plt.subplots(figsize=(8,5))
-        ax.plot(dsc_df["Temperature_C"], dsc_df["HeatFlow_mW"], label=selected_file)
-        ax.set_xlabel("Temperature (°C)")
-        ax.set_ylabel("Heat Flow (mW)")
-        ax.legend()
-        ax.grid(True)
-        st.pyplot(fig)
+    # -----------------
+    # GRAFİK
+    # -----------------
+    st.subheader("📊 DSC Curve")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(dsc_df["Temperature_C"], dsc_df["HeatFlow_mW"], label=file_row["custom_name"])
+    ax.set_xlabel("Temperature (°C)")
+    ax.set_ylabel("Heat Flow (mW)")
+    ax.legend()
+    ax.grid(True)
+    st.pyplot(fig)
 
-        # -----------------
-        # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik)
-        # -----------------
+    # -----------------
+    # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik)
+    # -----------------
+    if len(dsc_df) >= 5:
         T = dsc_df["Temperature_C"].values
         hf = dsc_df["HeatFlow_mW"].values
-        window = 101 if len(hf) >= 101 else (len(hf)//2*2 + 1)
+
+        # Smoothing
+        window = 101 if len(hf) >= 101 else (max(3, (len(hf) // 2) * 2 + 1))
         hf_s = savgol_filter(hf, window_length=window, polyorder=3)
 
-        # Tg
+        # Tg (eğim değişimi ~80-200°C aralığında)
         mask_tg = (T >= 80) & (T <= 200)
-        dHdT = np.gradient(hf_s, T)
-        idx_tg = np.argmax(np.abs(dHdT[mask_tg]))
-        Tg = T[mask_tg][idx_tg]
+        Tg = np.nan
+        try:
+            dHdT = np.gradient(hf_s, T)
+            if mask_tg.any():
+                idx_tg = np.argmax(np.abs(dHdT[mask_tg]))
+                Tg = float(T[mask_tg][idx_tg])
+        except Exception:
+            Tg = np.nan
 
-        # Tc
-        mask_tc = (T >= 200) & (T <= 360)
-        peaks_tc, _ = find_peaks(hf_s[mask_tc], prominence=0.01, distance=50)
-        Tc = T[mask_tc][peaks_tc[0]] if len(peaks_tc) > 0 else np.nan
+        # Tc (ekzotermik pik ~200-360°C)
+        Tc = np.nan
+        try:
+            mask_tc = (T >= 200) & (T <= 360)
+            if mask_tc.any():
+                peaks_tc, _ = find_peaks(hf_s[mask_tc], prominence=0.01, distance=50)
+                if len(peaks_tc) > 0:
+                    Tc = float(T[mask_tc][peaks_tc[0]])
+        except Exception:
+            Tc = np.nan
 
-        # Tm
-        mask_tm = (T >= 330) & (T <= 420)
-        peaks_tm, _ = find_peaks(-hf_s[mask_tm], prominence=0.01, distance=50)
-        Tm = T[mask_tm][peaks_tm[0]] if len(peaks_tm) > 0 else np.nan
+        # Tm (endotermik pik ~330-420°C)
+        Tm = np.nan
+        try:
+            mask_tm = (T >= 330) & (T <= 420)
+            if mask_tm.any():
+                peaks_tm, _ = find_peaks(-hf_s[mask_tm], prominence=0.01, distance=50)
+                if len(peaks_tm) > 0:
+                    Tm = float(T[mask_tm][peaks_tm[0]])
+        except Exception:
+            Tm = np.nan
 
-        # Enthalpi hesaplamaları (aynı fonksiyon mantığında)
+        # Enthalpi (J/g) hesapları
         sample_mass_mg = 5.471
-        heating_rate = 10.0  # sabit varsayıldı
+        heating_rate = 10.0  # °C/min varsayımı
 
-        def integrate_peak(T, y, T_left, T_right, mass_mg, heat_rate_c_per_min):
-            m = (T >= T_left) & (T <= T_right)
-            Tw, yw = T[m], y[m]
+        def integrate_peak(Tv, yv, T_left, T_right, mass_mg, heat_rate_c_per_min):
+            if np.isnan(T_left) or np.isnan(T_right):
+                return np.nan
+            m = (Tv >= T_left) & (Tv <= T_right)
+            Tw, yw = Tv[m], yv[m]
             if len(Tw) < 3:
                 return np.nan
+            # Baseline: uçları birleştir
             baseline = np.interp(Tw, [Tw[0], Tw[-1]], [yw[0], yw[-1]])
             ycorr = yw - baseline
             beta_c_per_s = heat_rate_c_per_min / 60.0
+            # ∫(mW) dT  / (°C/s)  => mJ
             area_mJ = np.trapz(ycorr, Tw) / beta_c_per_s
             area_J = area_mJ / 1000.0
             mass_g = mass_mg / 1000.0
             return area_J / mass_g if mass_g > 0 else np.nan
 
-        dH_cc = integrate_peak(T, hf_s, Tc-15, Tc+15, sample_mass_mg, heating_rate)
-        dH_m = integrate_peak(T, hf_s, Tm-15, Tm+15, sample_mass_mg, heating_rate)
+        dH_cc = integrate_peak(T, hf_s, Tc - 15, Tc + 15, sample_mass_mg, heating_rate) if not np.isnan(Tc) else np.nan
+        dH_m  = integrate_peak(T, hf_s, Tm - 15, Tm + 15, sample_mass_mg, heating_rate) if not np.isnan(Tm) else np.nan
+
+        # Erime endotermik (grafikte aşağı yönde): işaret düzeltme
         dH_melting = -dH_m if not np.isnan(dH_m) else np.nan
-        cryst_pct = (dH_melting - dH_cc) / 130 * 100 if dH_melting and dH_cc else np.nan
+
+        # ΔH_fus° (PEKK/PEEK için yaklaşık 130 J/g) üzerinden kristallik
+        cryst_pct = np.nan
+        if not np.isnan(dH_melting) and not np.isnan(dH_cc):
+            cryst_pct = (dH_melting - dH_cc) / 130.0 * 100.0
 
         results = {
-            "Tg (°C)": round(Tg, 1),
-            "Tc (°C)": round(Tc, 1),
-            "Tm (°C)": round(Tm, 1),
-            "ΔH_cold_cryst (J/g)": round(dH_cc, 2),
-            "ΔH_melting (J/g)": round(dH_melting, 2),
-            "Crystallinity (%)": round(cryst_pct, 1)
+            "Tg (°C)": None if np.isnan(Tg) else round(Tg, 1),
+            "Tc (°C)": None if np.isnan(Tc) else round(Tc, 1),
+            "Tm (°C)": None if np.isnan(Tm) else round(Tm, 1),
+            "ΔH_cold_cryst (J/g)": None if np.isnan(dH_cc) else round(dH_cc, 2),
+            "ΔH_melting (J/g)": None if np.isnan(dH_melting) else round(dH_melting, 2),
+            "Crystallinity (%)": None if np.isnan(cryst_pct) else round(cryst_pct, 1),
         }
 
         st.subheader("📑 Calculated Results")
         st.json(results)
-
+    else:
+        st.warning("Not enough data points to analyze.")
