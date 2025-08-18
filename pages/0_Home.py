@@ -23,22 +23,22 @@ if page == "COMPADDITIVE Material Selection":
     st.switch_page("pages/1_COMPADDITIVE_Material_Selection.py")
 
 elif page == "COMPADDITIVE Literature Reviewer":
-    st.switch_page("pages/3_COMPADDITIVE_Literature_Reviewer.py")
+    st.switch_page("pages/2_COMPADDITIVE_Literature_Reviewer.py")
 
 elif page == "CREDIT Literature Reviewer":
-    st.switch_page("pages/4_CREDIT_Literature_Reviewer.py")
+    st.switch_page("pages/3_CREDIT_Literature_Reviewer.py")
 
 elif page == "Tensile Test Library":
-    st.switch_page("pages/7_Tensile_Test_Library.py")
+    st.switch_page("pages/4_Tensile_Test_Library.py")
 
 elif page == "DSC Library":
-    st.switch_page("pages/8_1_DSC Library.py")
+    st.switch_page("pages/5_DSC_Library.py")
 
 elif page == "SEM & EDS Library":
-    st.switch_page("pages/8_2_SEM & EDS Library.py")
+    st.switch_page("pages/6_SEM_&_EDS_Library.py")
 
 elif page == "Fatigue Test Library":
-    st.switch_page("pages/8_Fatigue_Test_Library.py")
+    st.switch_page("pages/7_Fatigue_Test_Library.py")
 
 elif page == "Production Tracker":
-    st.switch_page("pages/9_Production_Tracker.py")
+    st.switch_page("pages/8_Production_Tracker.py")
