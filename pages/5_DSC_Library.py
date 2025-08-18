@@ -8,7 +8,7 @@ import numpy as np
 from scipy.signal import savgol_filter, find_peaks
 import io
 
-# ✅ Kullanıcı giriş kontrolü
+# ✅ Giriş kontrolü (uygulamanızın mevcut auth akışına uygun)
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("🔒 You must be logged in to access this page.")
     st.stop()
@@ -96,23 +96,23 @@ if not meta_df.empty:
         st.error("File missing on disk.")
         st.stop()
 
-    # Kullanıcı girişleri
+    # Kullanıcı girişleri (dokümana uyum)
     sample_mass = st.number_input("Sample Mass (mg)", min_value=0.1, value=5.471, step=0.1, format="%.3f")
     material_type = st.selectbox("Material Type", ["Type I", "Type II", "Type III"])
     material_class = st.selectbox("Material", ["PEKK", "PEEK", "PPS", "PESU"])
     cycle = st.selectbox("Cycle", ["Heating 1", "Heating 2", "Cooling"])
     heating_rate = st.number_input("Heating Rate (°C/min)", min_value=0.1, value=10.0, step=0.1)
 
-    # ΔH°fus referansları (J/g)
+    # ΔH°fus referansları (J/g) — malzemeye göre
     DHfus_ref = {"PEKK": 130, "PEEK": 130, "PPS": 79, "PESU": None}
 
-    # Tablo aralıkları (örnek değerler, dokümandan adapte edilebilir)
+    # Dokümandaki tablo aralıkları sabitleri (örnekle doldurulmuş; kendi tablo değerlerinle güncelleyebilirsin)
     TABLE_RANGES = {
-        "Tm": (330, 420),   # Table III
-        "Tc": (200, 360),   # Table IV
-        "ΔHf": (330, 420),  # Table V
-        "ΔHc": (200, 360),  # Table VI
-        "ΔHcc": (80, 330)   # Table VII (Type III only)
+        "Tm": (330, 420),   # Table III: Melting region (heating)
+        "Tc": (200, 360),   # Table IV: Crystallization region (cooling)
+        "ΔHf": (330, 420),  # Table V: Heat of Fusion integration window
+        "ΔHc": (200, 360),  # Table VI: Heat of Crystallization integration window
+        "ΔHcc": (80, 330)   # Table VII: Cold Crystallization (Type III only, heating 1)
     }
 
     # Raw data okuma
@@ -130,115 +130,144 @@ if not meta_df.empty:
         return pd.DataFrame(data, columns=["Time (min)", "Temperature (°C)", "Heat Flow (mW)"])
 
     dsc_df = load_dsc_txt(file_path, header_skip=56)
+
+    # ---------- Raw Data + Excel indirme (openpyxl) ----------
     st.markdown("**📋 Raw Data**")
     st.dataframe(dsc_df, use_container_width=True)
 
-    # 📥 Raw Data indir
     excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
         dsc_df.to_excel(writer, index=False, sheet_name="DSC Raw Data")
-    st.download_button("⬇️ Download Raw Data (.xlsx)", excel_buffer.getvalue(),
-                       file_name=f"{file_row['custom_name']}_raw.xlsx")
+    st.download_button(
+        "⬇️ Download Raw Data (.xlsx)",
+        data=excel_buffer.getvalue(),
+        file_name=f"{file_row['custom_name']}_raw.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
     # ================== ANALİZ ==================
     if len(dsc_df) >= 5:
         T = dsc_df["Temperature (°C)"].values
         hf = dsc_df["Heat Flow (mW)"].values
+
+        # Smoothing
         window = 101 if len(hf) >= 101 else max(3, (len(hf)//2)*2+1)
         hf_s = savgol_filter(hf, window_length=window, polyorder=3)
 
-        Tg, Tc, Tm, dH_cc, dH_melting, dH_c = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+        Tg, Tc, Tm = np.nan, np.nan, np.nan
+        dH_cc, dH_melting, dH_c = np.nan, np.nan, np.nan
 
-        # Tg (genel gözlem)
+        # ===== Tg (genel gözlem, türev maksimumu) =====
         try:
             dHdT = np.gradient(hf_s, T)
             idx = np.argmax(np.abs(dHdT))
             Tg = float(T[idx]) if 80 <= T[idx] <= 200 else np.nan
-        except: pass
+        except:
+            pass
 
-        # Tc (Cooling)
+        # ===== Tc (Cooling) =====
         if cycle == "Cooling":
-            rng = TABLE_RANGES["Tc"]
-            mask = (T >= rng[0]) & (T <= rng[1])
+            lo, hi = TABLE_RANGES["Tc"]
+            mask_tc = (T >= lo) & (T <= hi)
             try:
-                peaks_tc, _ = find_peaks(hf_s[mask], prominence=0.01, distance=50)
+                peaks_tc, _ = find_peaks(hf_s[mask_tc], prominence=0.01, distance=50)
                 if len(peaks_tc) > 0:
-                    Tc = float(T[mask][peaks_tc[0]])
-                    dH_c = np.trapz(hf_s[mask], T[mask])/(heating_rate/60)/(sample_mass/1000)
-            except: pass
+                    Tc = float(T[mask_tc][peaks_tc[0]])
+                    # integral (ΔHc) — baseline düzeltmesi olmadan bölge integrali (tablo penceresi)
+                    beta = heating_rate / 60.0
+                    dH_c = np.trapz(hf_s[mask_tc], T[mask_tc]) / beta / (sample_mass / 1000.0)
+            except:
+                pass
 
-        # Tm (Heating 1 or 2)
+        # ===== Tm (Heating 1 or 2; Type III → H1, Type I–II → H2) =====
         if (material_type == "Type III" and cycle == "Heating 1") or \
            (material_type in ["Type I", "Type II"] and cycle == "Heating 2"):
-            rng = TABLE_RANGES["Tm"]
-            mask = (T >= rng[0]) & (T <= rng[1])
+            lo, hi = TABLE_RANGES["Tm"]
+            mask_tm = (T >= lo) & (T <= hi)
             try:
-                peaks_tm, _ = find_peaks(-hf_s[mask], prominence=0.01, distance=50)
+                peaks_tm, _ = find_peaks(-hf_s[mask_tm], prominence=0.01, distance=50)
                 if len(peaks_tm) > 0:
-                    Tm = float(T[mask][peaks_tm[0]])
-                    dH_melting = -np.trapz(hf_s[mask], T[mask])/(heating_rate/60)/(sample_mass/1000)
-            except: pass
+                    Tm = float(T[mask_tm][peaks_tm[0]])
+                    beta = heating_rate / 60.0
+                    dH_melting = -np.trapz(hf_s[mask_tm], T[mask_tm]) / beta / (sample_mass / 1000.0)
+            except:
+                pass
 
-        # ΔHcc (Type III, Heating 1)
+        # ===== ΔHcc (Type III & Heating 1) =====
         if material_type == "Type III" and cycle == "Heating 1":
-            rng = TABLE_RANGES["ΔHcc"]
-            mask = (T >= rng[0]) & (T <= rng[1])
+            lo, hi = TABLE_RANGES["ΔHcc"]
+            mask_cc = (T >= lo) & (T <= hi)
             try:
-                dH_cc = np.trapz(hf_s[mask], T[mask])/(heating_rate/60)/(sample_mass/1000)
-            except: pass
+                beta = heating_rate / 60.0
+                dH_cc = np.trapz(hf_s[mask_cc], T[mask_cc]) / beta / (sample_mass / 1000.0)
+            except:
+                pass
 
-        # Kristallik
+        # ===== Kristallik (%) — malzemeye bağlı ΔH°fus =====
         cryst_pct = np.nan
         DHfus_ref_val = DHfus_ref[material_class]
         if DHfus_ref_val is not None and not np.isnan(dH_melting):
-            cryst_pct = ((dH_melting - (0 if np.isnan(dH_cc) else dH_cc)) / DHfus_ref_val) * 100
+            cryst_pct = ((dH_melting - (0 if np.isnan(dH_cc) else dH_cc)) / DHfus_ref_val) * 100.0
 
-        # ======= GRAFİK =======
+        # ================== GRAFİK (işaretlemeli) ==================
         st.subheader("📊 DSC Curve with Analysis")
         fig, ax = plt.subplots(figsize=(9, 6))
-        ax.plot(T, hf, color="gray", alpha=0.4, label="Raw")
-        ax.plot(T, hf_s, color="blue", label="Smoothed")
+        ax.plot(T, hf, color="gray", alpha=0.35, label="Raw")
+        ax.plot(T, hf_s, label="Smoothed")
 
         # Tg çizgisi
         if not np.isnan(Tg):
-            ax.axvline(Tg, color="orange", linestyle="--", label=f"Tg = {round(Tg,1)} °C")
+            ax.axvline(Tg, color="orange", linestyle="--", linewidth=1.5, label=f"Tg = {round(Tg,1)} °C")
 
-        # Tc çizgisi + alan
+        # Tc çizgisi + gölgeli bölge
         if not np.isnan(Tc):
-            ax.axvline(Tc, color="green", linestyle="--", label=f"Tc = {round(Tc,1)} °C")
-            ax.fill_between(T, hf_s, 0, where=(T>=TABLE_RANGES["Tc"][0]) & (T<=TABLE_RANGES["Tc"][1]),
-                            color="green", alpha=0.2)
+            ax.axvline(Tc, color="green", linestyle="--", linewidth=1.5, label=f"Tc = {round(Tc,1)} °C")
+        lo_tc, hi_tc = TABLE_RANGES["Tc"]
+        ax.fill_between(T, hf_s, 0, where=(T >= lo_tc) & (T <= hi_tc), color="green", alpha=0.15, label="Tc region")
 
-        # Tm çizgisi + alan
+        # Tm çizgisi + gölgeli bölge
         if not np.isnan(Tm):
-            ax.axvline(Tm, color="red", linestyle="--", label=f"Tm = {round(Tm,1)} °C")
-            ax.fill_between(T, hf_s, 0, where=(T>=TABLE_RANGES["Tm"][0]) & (T<=TABLE_RANGES["Tm"][1]),
-                            color="red", alpha=0.2)
+            ax.axvline(Tm, color="red", linestyle="--", linewidth=1.5, label=f"Tm = {round(Tm,1)} °C")
+        lo_tm, hi_tm = TABLE_RANGES["Tm"]
+        ax.fill_between(T, hf_s, 0, where=(T >= lo_tm) & (T <= hi_tm), color="red", alpha=0.15, label="Tm region")
 
-        # ΔHcc alanı (Type III)
-        if not np.isnan(dH_cc):
-            ax.fill_between(T, hf_s, 0, where=(T>=TABLE_RANGES["ΔHcc"][0]) & (T<=TABLE_RANGES["ΔHcc"][1]),
-                            color="purple", alpha=0.2, label="Cold Cryst.")
+        # ΔHcc bölgesi (yalnız Type III & H1)
+        if material_type == "Type III":
+            lo_cc, hi_cc = TABLE_RANGES["ΔHcc"]
+            ax.fill_between(T, hf_s, 0, where=(T >= lo_cc) & (T <= hi_cc), color="purple", alpha=0.12, label="Cold cryst.")
 
         ax.set_xlabel("Temperature (°C)")
         ax.set_ylabel("Heat Flow (mW)")
         ax.legend()
         ax.grid(True)
 
+        # Analizli grafiği indir (PNG)
         png_buf = io.BytesIO()
         fig.savefig(png_buf, format="png", dpi=300, bbox_inches="tight")
-        st.download_button("⬇️ Download DSC Curve with Analysis (.png)", png_buf.getvalue(),
-                           file_name=f"{file_row['custom_name']}_curve_analysis.png", mime="image/png")
+        st.download_button(
+            "⬇️ Download DSC Curve with Analysis (.png)",
+            data=png_buf.getvalue(),
+            file_name=f"{file_row['custom_name']}_curve_analysis.png",
+            mime="image/png"
+        )
         st.pyplot(fig)
 
-        # ======= SONUÇLAR =======
+        # ================== SONUÇ KARTLARI ==================
         st.subheader("📑 Calculated Results")
-        def fmt(v, u=""): return "—" if np.isnan(v) else f"{round(v,2)} {u}"
+        def fmt(v, u=""):
+            try:
+                if v is None or np.isnan(v):
+                    return "—"
+            except:
+                pass
+            return f"{round(float(v), 2)} {u}".strip()
+
         c1, c2, c3 = st.columns(3)
-        c1.metric("Tg", fmt(Tg,"°C"))
-        c2.metric("Tc", fmt(Tc,"°C"))
-        c3.metric("Tm", fmt(Tm,"°C"))
+        c1.metric("Tg", fmt(Tg, "°C"))
+        c2.metric("Tc", fmt(Tc, "°C"))
+        c3.metric("Tm", fmt(Tm, "°C"))
+
         c4, c5, c6 = st.columns(3)
-        c4.metric("ΔHcc", fmt(dH_cc,"J/g") if material_type=="Type III" else "—")
-        c5.metric("ΔHm", fmt(dH_melting,"J/g"))
-        c6.metric("Crystallinity", fmt(cryst_pct,"%"))
+        c4.metric("ΔHcc", fmt(dH_cc, "J/g") if material_type == "Type III" else "—")
+        c5.metric("ΔHm", fmt(dH_melting, "J/g"))
+        c6.metric("Crystallinity", fmt(cryst_pct, "%"))
