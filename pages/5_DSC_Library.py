@@ -16,115 +16,106 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 st.set_page_config(page_title="DSC Library", page_icon="🔬", layout="wide")
 st.title("🔬 DSC Library")
 
-# Oturumdan kullanıcı adı çekiyoruz; görünmeyecek (sadece kayıtta tutulabilir)
 current_user = st.session_state.get("username", "unknown")
 
-# 📁 Kalıcı kayıt dosyaları
+# 📁 Klasörler
 UPLOAD_DIR = "dsc_uploads"
 META_FILE = "dsc_uploads_metadata.csv"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Metadata şeması (uploaded_by tutulabilir fakat GÖSTERİLMEYECEK)
 META_COLUMNS = ["file_name", "custom_name", "uploaded_by", "upload_time"]
-
 if os.path.exists(META_FILE):
     meta_df = pd.read_csv(META_FILE)
-    # Eksik sütun varsa tamamla
     for col in META_COLUMNS:
         if col not in meta_df.columns:
-            meta_df[col] = "" if col != "upload_time" else None
+            meta_df[col] = ""
     meta_df = meta_df[META_COLUMNS]
 else:
     meta_df = pd.DataFrame(columns=META_COLUMNS)
 
 # =============================
-# 1) DOSYA YÜKLEME
+# 1) Dosya Yükleme
 # =============================
 st.subheader("📤 Upload DSC Raw Data")
-uploaded_file = st.file_uploader("Upload your DSC .txt file", type=["txt"], key="dsc_uploader")
-custom_name = st.text_input("Custom name for this file", key="dsc_custom_name")
+uploaded_file = st.file_uploader("Upload your DSC .txt file", type=["txt"])
+custom_name = st.text_input("Custom name for this file")
 
 if uploaded_file is not None and st.button("Save Upload", type="primary"):
     save_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
     with open(save_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
-
     new_entry = {
         "file_name": uploaded_file.name,
         "custom_name": custom_name.strip() if custom_name else uploaded_file.name,
-        "uploaded_by": current_user,  # kayıtta kalsın ama gösterilmeyecek
+        "uploaded_by": current_user,
         "upload_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-
     meta_df = pd.concat([meta_df, pd.DataFrame([new_entry])], ignore_index=True)
     meta_df.to_csv(META_FILE, index=False)
     st.success(f"✅ File '{uploaded_file.name}' uploaded and saved.")
     st.rerun()
 
 # =============================
-# 2) YÜKLENEN DOSYALAR — TEK TABLO (SİLİNEBİLİR)
+# 2) Yüklenen Dosyalar
 # =============================
 st.subheader("📂 Uploaded DSC Files")
-
 if meta_df.empty:
     st.info("No files uploaded yet.")
 else:
-    # Sadece görünsün istenen sütunlar (uploaded_by YOK)
-    view_df = meta_df[["file_name", "custom_name", "upload_time"]].copy()
-
-    # Başlık satırı
     hdr = st.columns([5, 5, 4, 2])
     hdr[0].markdown("**File Name**")
     hdr[1].markdown("**Custom Name**")
     hdr[2].markdown("**Upload Time**")
     hdr[3].markdown("**Delete**")
-
-    # Satırlar (TEK tablo görünümünde)
-    for idx, row in view_df.reset_index().iterrows():
+    for idx, row in meta_df.reset_index().iterrows():
         cols = st.columns([5, 5, 4, 2])
         cols[0].write(row["file_name"])
         cols[1].write(row["custom_name"])
         cols[2].write(row["upload_time"])
         if cols[3].button("🗑️ Delete", key=f"del_{row['file_name']}"):
-            # Fiziksel dosyayı sil
             try:
-                fp = os.path.join(UPLOAD_DIR, row["file_name"])
-                if os.path.exists(fp):
-                    os.remove(fp)
-            except Exception as e:
-                st.error(f"File delete error: {e}")
-
-            # Metadata'dan çıkar
-            try:
-                mask = (meta_df["file_name"] == row["file_name"]) & (meta_df["custom_name"] == row["custom_name"])
-                meta_df = meta_df.loc[~mask].reset_index(drop=True)
-                meta_df.to_csv(META_FILE, index=False)
-                st.success(f"Deleted: {row['file_name']}")
-            except Exception as e:
-                st.error(f"Metadata update error: {e}")
-
+                os.remove(os.path.join(UPLOAD_DIR, row["file_name"]))
+            except:
+                pass
+            meta_df = meta_df.loc[meta_df["file_name"] != row["file_name"]].reset_index(drop=True)
+            meta_df.to_csv(META_FILE, index=False)
+            st.success(f"Deleted: {row['file_name']}")
             st.rerun()
 
 # =============================
-# 3) DOSYA SEÇİMİ + GÖRÜNTÜLEME
+# 3) Analiz
 # =============================
 if not meta_df.empty:
     st.markdown("---")
     st.subheader("🔎 Analyze a File")
 
-    # Kullanıcı pohodaki adıyla seçsin
     selected_custom = st.selectbox("Select a file to analyze", meta_df["custom_name"].tolist())
     file_row = meta_df.loc[meta_df["custom_name"] == selected_custom].iloc[0]
     file_path = os.path.join(UPLOAD_DIR, file_row["file_name"])
-
     if not os.path.exists(file_path):
-        st.error("Selected file is missing on disk.")
+        st.error("File missing on disk.")
         st.stop()
 
-    # -----------------
-    # RAW DATA OKUMA
-    # -----------------
-    # Bazı DSC txt'lerinde header uzun olabilir; deneyimde 56. satırdan başlatılmıştı.
+    # Kullanıcı girişleri
+    sample_mass = st.number_input("Sample Mass (mg)", min_value=0.1, value=5.471, step=0.1, format="%.3f")
+    material_type = st.selectbox("Material Type", ["Type I", "Type II", "Type III"])
+    material_class = st.selectbox("Material", ["PEKK", "PEEK", "PPS", "PESU"])
+    cycle = st.selectbox("Cycle", ["Heating 1", "Heating 2", "Cooling"])
+    heating_rate = st.number_input("Heating Rate (°C/min)", min_value=0.1, value=10.0, step=0.1)
+
+    # ΔH°fus referansları (J/g)
+    DHfus_ref = {"PEKK": 130, "PEEK": 130, "PPS": 79, "PESU": None}
+
+    # Tablo aralıkları (örnek değerler, dokümandan adapte edilebilir)
+    TABLE_RANGES = {
+        "Tm": (330, 420),   # Table III
+        "Tc": (200, 360),   # Table IV
+        "ΔHf": (330, 420),  # Table V
+        "ΔHc": (200, 360),  # Table VI
+        "ΔHcc": (80, 330)   # Table VII (Type III only)
+    }
+
+    # Raw data okuma
     def load_dsc_txt(path, header_skip=56):
         with open(path, "r", encoding="latin1") as f:
             lines = f.readlines()
@@ -136,157 +127,118 @@ if not meta_df.empty:
                     data.append([float(parts[0]), float(parts[1]), float(parts[2])])
                 except:
                     pass
-        # Bilimsel sütun adlarıyla DataFrame döndür
-        df = pd.DataFrame(data, columns=["Time (min)", "Temperature (°C)", "Heat Flow (mW)"])
-        return df
+        return pd.DataFrame(data, columns=["Time (min)", "Temperature (°C)", "Heat Flow (mW)"])
 
     dsc_df = load_dsc_txt(file_path, header_skip=56)
-
-    # -----------------
-    # RAW DATA GÖSTERİM + XLSX İNDİRME
-    # -----------------
     st.markdown("**📋 Raw Data**")
     st.dataframe(dsc_df, use_container_width=True)
 
-    # 📥 Excel (.xlsx) indirme (CSV değil, “virgüllü değil”)
-    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in str(file_row["custom_name"]))
+    # 📥 Raw Data indir
     excel_buffer = io.BytesIO()
-    excel_bytes = None
-    try:
-        with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
-            dsc_df.to_excel(writer, index=False, sheet_name="DSC Raw Data")
-        excel_bytes = excel_buffer.getvalue()
-    except Exception:
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-            dsc_df.to_excel(writer, index=False, sheet_name="DSC Raw Data")
-        excel_bytes = excel_buffer.getvalue()
+    with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+        dsc_df.to_excel(writer, index=False, sheet_name="DSC Raw Data")
+    st.download_button("⬇️ Download Raw Data (.xlsx)", excel_buffer.getvalue(),
+                       file_name=f"{file_row['custom_name']}_raw.xlsx")
 
-    st.download_button(
-        "⬇️ Download Raw Data (.xlsx)",
-        data=excel_bytes,
-        file_name=f"{safe_name}_raw_data.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key=f"dl_xlsx_{file_row['file_name']}",
-    )
-
-    # -----------------
-    # GRAFİK
-    # -----------------
-    st.subheader("📊 DSC Curve")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(dsc_df["Temperature (°C)"], dsc_df["Heat Flow (mW)"], label=file_row["custom_name"])
-    ax.set_xlabel("Temperature (°C)")
-    ax.set_ylabel("Heat Flow (mW)")
-    ax.legend()
-    ax.grid(True)
-
-    # 📥 Grafik PNG indirme
-    png_buffer = io.BytesIO()
-    fig.savefig(png_buffer, format="png", dpi=300, bbox_inches="tight")
-    png_bytes = png_buffer.getvalue()
-    st.download_button(
-        "⬇️ Download DSC Curve (.png)",
-        data=png_bytes,
-        file_name=f"{safe_name}_dsc_curve.png",
-        mime="image/png",
-        key=f"dl_png_{file_row['file_name']}",
-    )
-
-    st.pyplot(fig)
-
-    # -----------------
-    # ANALİZ (Tg, Tc, Tm, ΔH, Kristallik)
-    # -----------------
+    # ================== ANALİZ ==================
     if len(dsc_df) >= 5:
         T = dsc_df["Temperature (°C)"].values
         hf = dsc_df["Heat Flow (mW)"].values
-
-        # Smoothing
-        window = 101 if len(hf) >= 101 else (max(3, (len(hf) // 2) * 2 + 1))
+        window = 101 if len(hf) >= 101 else max(3, (len(hf)//2)*2+1)
         hf_s = savgol_filter(hf, window_length=window, polyorder=3)
 
-        # Tg (eğim değişimi ~80–200 °C aralığında)
-        mask_tg = (T >= 80) & (T <= 200)
-        Tg = np.nan
+        Tg, Tc, Tm, dH_cc, dH_melting, dH_c = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+
+        # Tg (genel gözlem)
         try:
             dHdT = np.gradient(hf_s, T)
-            if mask_tg.any():
-                idx_tg = np.argmax(np.abs(dHdT[mask_tg]))
-                Tg = float(T[mask_tg][idx_tg])
-        except Exception:
-            Tg = np.nan
+            idx = np.argmax(np.abs(dHdT))
+            Tg = float(T[idx]) if 80 <= T[idx] <= 200 else np.nan
+        except: pass
 
-        # Tc (ekzotermik pik ~200–360 °C)
-        Tc = np.nan
-        try:
-            mask_tc = (T >= 200) & (T <= 360)
-            if mask_tc.any():
-                peaks_tc, _ = find_peaks(hf_s[mask_tc], prominence=0.01, distance=50)
+        # Tc (Cooling)
+        if cycle == "Cooling":
+            rng = TABLE_RANGES["Tc"]
+            mask = (T >= rng[0]) & (T <= rng[1])
+            try:
+                peaks_tc, _ = find_peaks(hf_s[mask], prominence=0.01, distance=50)
                 if len(peaks_tc) > 0:
-                    Tc = float(T[mask_tc][peaks_tc[0]])
-        except Exception:
-            Tc = np.nan
+                    Tc = float(T[mask][peaks_tc[0]])
+                    dH_c = np.trapz(hf_s[mask], T[mask])/(heating_rate/60)/(sample_mass/1000)
+            except: pass
 
-        # Tm (endotermik pik ~330–420 °C)
-        Tm = np.nan
-        try:
-            mask_tm = (T >= 330) & (T <= 420)
-            if mask_tm.any():
-                peaks_tm, _ = find_peaks(-hf_s[mask_tm], prominence=0.01, distance=50)
+        # Tm (Heating 1 or 2)
+        if (material_type == "Type III" and cycle == "Heating 1") or \
+           (material_type in ["Type I", "Type II"] and cycle == "Heating 2"):
+            rng = TABLE_RANGES["Tm"]
+            mask = (T >= rng[0]) & (T <= rng[1])
+            try:
+                peaks_tm, _ = find_peaks(-hf_s[mask], prominence=0.01, distance=50)
                 if len(peaks_tm) > 0:
-                    Tm = float(T[mask_tm][peaks_tm[0]])
-        except Exception:
-            Tm = np.nan
+                    Tm = float(T[mask][peaks_tm[0]])
+                    dH_melting = -np.trapz(hf_s[mask], T[mask])/(heating_rate/60)/(sample_mass/1000)
+            except: pass
 
-        # Enthalpi (J/g) hesapları
-        sample_mass_mg = 5.471      # gerekirse UI'dan parametreleştirilebilir
-        heating_rate = 10.0         # °C/min varsayımı
+        # ΔHcc (Type III, Heating 1)
+        if material_type == "Type III" and cycle == "Heating 1":
+            rng = TABLE_RANGES["ΔHcc"]
+            mask = (T >= rng[0]) & (T <= rng[1])
+            try:
+                dH_cc = np.trapz(hf_s[mask], T[mask])/(heating_rate/60)/(sample_mass/1000)
+            except: pass
 
-        def integrate_peak(Tv, yv, T_left, T_right, mass_mg, heat_rate_c_per_min):
-            if np.isnan(T_left) or np.isnan(T_right):
-                return np.nan
-            m = (Tv >= T_left) & (Tv <= T_right)
-            Tw, yw = Tv[m], yv[m]
-            if len(Tw) < 3:
-                return np.nan
-            # Baseline: uçları birleştir
-            baseline = np.interp(Tw, [Tw[0], Tw[-1]], [yw[0], yw[-1]])
-            ycorr = yw - baseline
-            beta_c_per_s = heat_rate_c_per_min / 60.0
-            # ∫(mW) dT  / (°C/s)  => mJ
-            area_mJ = np.trapz(ycorr, Tw) / beta_c_per_s
-            area_J = area_mJ / 1000.0
-            mass_g = mass_mg / 1000.0
-            return area_J / mass_g if mass_g > 0 else np.nan
-
-        dH_cc = integrate_peak(T, hf_s, Tc - 15, Tc + 15, sample_mass_mg, heating_rate) if not np.isnan(Tc) else np.nan
-        dH_m  = integrate_peak(T, hf_s, Tm - 15, Tm + 15, sample_mass_mg, heating_rate) if not np.isnan(Tm) else np.nan
-
-        # Erime endotermik (grafikte aşağı yönde): işaret düzeltme
-        dH_melting = -dH_m if not np.isnan(dH_m) else np.nan
-
-        # ΔH_fus° (PEKK/PEEK için yaklaşık 130 J/g) üzerinden kristallik
+        # Kristallik
         cryst_pct = np.nan
-        if not np.isnan(dH_melting) and not np.isnan(dH_cc):
-            cryst_pct = (dH_melting - dH_cc) / 130.0 * 100.0
+        DHfus_ref_val = DHfus_ref[material_class]
+        if DHfus_ref_val is not None and not np.isnan(dH_melting):
+            cryst_pct = ((dH_melting - (0 if np.isnan(dH_cc) else dH_cc)) / DHfus_ref_val) * 100
 
-        # ======= SONUÇ GÖSTERİMİ: METRIC KARTLAR =======
+        # ======= GRAFİK =======
+        st.subheader("📊 DSC Curve with Analysis")
+        fig, ax = plt.subplots(figsize=(9, 6))
+        ax.plot(T, hf, color="gray", alpha=0.4, label="Raw")
+        ax.plot(T, hf_s, color="blue", label="Smoothed")
+
+        # Tg çizgisi
+        if not np.isnan(Tg):
+            ax.axvline(Tg, color="orange", linestyle="--", label=f"Tg = {round(Tg,1)} °C")
+
+        # Tc çizgisi + alan
+        if not np.isnan(Tc):
+            ax.axvline(Tc, color="green", linestyle="--", label=f"Tc = {round(Tc,1)} °C")
+            ax.fill_between(T, hf_s, 0, where=(T>=TABLE_RANGES["Tc"][0]) & (T<=TABLE_RANGES["Tc"][1]),
+                            color="green", alpha=0.2)
+
+        # Tm çizgisi + alan
+        if not np.isnan(Tm):
+            ax.axvline(Tm, color="red", linestyle="--", label=f"Tm = {round(Tm,1)} °C")
+            ax.fill_between(T, hf_s, 0, where=(T>=TABLE_RANGES["Tm"][0]) & (T<=TABLE_RANGES["Tm"][1]),
+                            color="red", alpha=0.2)
+
+        # ΔHcc alanı (Type III)
+        if not np.isnan(dH_cc):
+            ax.fill_between(T, hf_s, 0, where=(T>=TABLE_RANGES["ΔHcc"][0]) & (T<=TABLE_RANGES["ΔHcc"][1]),
+                            color="purple", alpha=0.2, label="Cold Cryst.")
+
+        ax.set_xlabel("Temperature (°C)")
+        ax.set_ylabel("Heat Flow (mW)")
+        ax.legend()
+        ax.grid(True)
+
+        png_buf = io.BytesIO()
+        fig.savefig(png_buf, format="png", dpi=300, bbox_inches="tight")
+        st.download_button("⬇️ Download DSC Curve with Analysis (.png)", png_buf.getvalue(),
+                           file_name=f"{file_row['custom_name']}_curve_analysis.png", mime="image/png")
+        st.pyplot(fig)
+
+        # ======= SONUÇLAR =======
         st.subheader("📑 Calculated Results")
-
-        def fmt(val, unit=""):
-            if val is None or (isinstance(val, float) and np.isnan(val)):
-                return "—"
-            return f"{val} {unit}".strip()
-
+        def fmt(v, u=""): return "—" if np.isnan(v) else f"{round(v,2)} {u}"
         c1, c2, c3 = st.columns(3)
-        c1.metric("Tg", fmt(None if np.isnan(Tg) else round(Tg, 1), "°C"))
-        c2.metric("Tc", fmt(None if np.isnan(Tc) else round(Tc, 1), "°C"))
-        c3.metric("Tm", fmt(None if np.isnan(Tm) else round(Tm, 1), "°C"))
-
+        c1.metric("Tg", fmt(Tg,"°C"))
+        c2.metric("Tc", fmt(Tc,"°C"))
+        c3.metric("Tm", fmt(Tm,"°C"))
         c4, c5, c6 = st.columns(3)
-        c4.metric("ΔH (cold crystallization)", fmt(None if np.isnan(dH_cc) else round(dH_cc, 2), "J/g"))
-        c5.metric("ΔH (melting)", fmt(None if np.isnan(dH_melting) else round(dH_melting, 2), "J/g"))
-        c6.metric("Crystallinity", fmt(None if np.isnan(cryst_pct) else round(cryst_pct, 1), "%"))
-    else:
-        st.warning("Not enough data points to analyze.")
+        c4.metric("ΔHcc", fmt(dH_cc,"J/g") if material_type=="Type III" else "—")
+        c5.metric("ΔHm", fmt(dH_melting,"J/g"))
+        c6.metric("Crystallinity", fmt(cryst_pct,"%"))
