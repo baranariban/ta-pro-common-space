@@ -7,8 +7,8 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.error("🔒 You must be logged in to access this page.")
     st.stop()
   
-st.set_page_config(page_title="COMPADDITIVE Material Selection", page_icon="🧪", layout="wide")
-st.title("🧪 COMPADDITIVE Material Selection")
+st.set_page_config(page_title="COMPADDITIVE Material Selection", layout="wide")
+st.title("COMPADDITIVE Material Selection")
 
 # 📋 Özellik listesi
 properties = [
@@ -495,7 +495,7 @@ def generate_excel_template():
     return output
 
 # ➕ Kullanıcıya seçim sun
-option = st.radio("Choose how you'd like to proceed:", [
+option = st.radio("Choose how you would like to proceed:", [
     "Use embedded dataset",
     "Add manual entry",
     "Upload dataset from Excel"
