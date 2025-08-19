@@ -6,79 +6,6 @@ import trimesh
 import base64
 import streamlit.components.v1 as components
 
-# ==== AI HELPERS (paste once near imports) =====================================
-import os
-
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None
-
-def _get_openai_client():
-    """
-    Looks for API key in Streamlit secrets or environment variable.
-    Returns: OpenAI client or None if not available.
-    """
-    if OpenAI is None:
-        return None
-    key = None
-    try:
-        # streamlit secrets -> [openai].api_key
-        key = st.secrets.get("openai", {}).get("api_key")
-    except Exception:
-        pass
-    if not key:
-        key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        return None
-    try:
-        return OpenAI(api_key=key)
-    except Exception:
-        return None
-
-_AI = _get_openai_client()
-
-def ai_available() -> bool:
-    return _AI is not None
-
-def ask_ai(prompt: str, sys: str = (
-    "You are an expert materials/process engineer. "
-    "Write a concise (~120 words), professional reasoning for a decision support dashboard. "
-    "Avoid fluff; reference key criteria, user-selected targets and data summaries explicitly."
-)):
-    if not ai_available():
-        return None, "AI not available (no API key or SDK missing)."
-    try:
-        resp = _AI.responses.create(
-            model="gpt-4o-mini",
-            input=[{"role": "system", "content": sys},
-                   {"role": "user",   "content": prompt}]
-        )
-        text = getattr(resp, "output_text", "").strip()
-        return (text if text else None), (None if text else "Empty AI response")
-    except Exception as e:
-        return None, str(e)
-
-def ai_expander_ui(title: str, key_suffix: str, prompt_builder):
-    """
-    Renders an expander with a 'Generate' button. When clicked, builds a prompt via
-    prompt_builder() -> str and shows AI output.
-    """
-    with st.expander(title, expanded=False):
-        if st.button("🤖 Generate", key=f"ai_btn_{key_suffix}"):
-            prompt = prompt_builder()
-            if not prompt:
-                st.info("Not enough data to generate reasoning.")
-                return
-            text, err = ask_ai(prompt)
-            if err:
-                st.error(f"AI error: {err}")
-            elif text:
-                st.success(text)
-            else:
-                st.info("No AI text returned.")
-# ===============================================================================
-
 # ✅ Kullanıcı giriş kontrolü
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("🔒 You must be logged in to access this page.")
@@ -750,34 +677,6 @@ with tab2:
     # Sonraki sekmelerin kullanabilmesi için sakla
     st.session_state["passed_composites"] = passed_composites
     
-# === AI: Pre-Screening reasoning =================================================
-    def _build_prescreening_prompt():
-        passed = st.session_state.get("passed_composites", [])
-        if not passed:
-            return None
-        # sabitler, kullanıcıya açıklama için
-        epoxy_cte = 50
-        usd_to_eur = 0.91
-        invar_cost_usd_per_kg = 70
-        invar_density = 8000
-        invar_cost_eur_per_m3 = invar_cost_usd_per_kg * invar_density * usd_to_eur
-        threshold_cost = invar_cost_eur_per_m3 * 0.70
-
-        # kısa özet listesi (çok uzamaması için ilk 8’i göster)
-        show = ", ".join(passed[:8]) + ("…" if len(passed) > 8 else "")
-        return (
-            "Pre-screening summary for CFRP mold-compatible composites.\n"
-            f"Criteria:\n"
-            f"- CTE compatibility vs epoxy CTE={epoxy_cte} µstrain/°C (±60%).\n"
-            f"- Cost threshold: composite_cost_eur_per_m3 <= {threshold_cost:,.0f} EUR/m³ (i.e., ≥30% cheaper than Invar).\n"
-            f"- No plastic deformation at autoclave ~180°C, 7 bar (via HDT(A/B) interpolation).\n"
-            f"Passed ({len(passed)}): {show}\n"
-            "Explain concisely why these materials passed and what this implies for next steps."
-        )
-
-    ai_expander_ui("🤖 AI Recommendation — Pre-Screening", "prescreen", _build_prescreening_prompt)
-# =================================================================================
-
 # =========================================================
 # TAB 3 — FILTERING
 # =========================================================
@@ -853,33 +752,6 @@ with tab3:
     # Skor ve Maliyet sekmeleri için sakla
     st.session_state["selected_filters"] = selected_filters
     st.session_state["final_filtered_composites"] = final_filtered_composites
-
-# === AI: Filtering reasoning =====================================================
-    def _build_filtering_prompt():
-        selected_filters = st.session_state.get("selected_filters", {})
-        final_list = st.session_state.get("final_filtered_composites", [])
-        base_pool = st.session_state.get("passed_composites", [])
-        if final_list is None or base_pool is None:
-            return None
-        # filtre özetini metne çevir
-        if not selected_filters:
-            filters_txt = "- (no property filters applied)"
-        else:
-            parts = []
-            for prop, (cond, val) in selected_filters.items():
-                parts.append(f"- {prop}: {cond} {val}")
-            filters_txt = "\n".join(parts)
-        show = ", ".join(final_list[:10]) + ("…" if len(final_list) > 10 else "")
-        return (
-            "Filtering stage summary.\n"
-            f"Base pool size (from pre-screen): {len(base_pool)}.\n"
-            f"User property filters:\n{filters_txt}\n"
-            f"Matched composites ({len(final_list)}): {show}\n"
-            "Explain which filters likely eliminated candidates and why the matched set remains suitable."
-        )
-
-    ai_expander_ui("🤖 AI Recommendation — Filtering", "filtering", _build_filtering_prompt)
-# =================================================================================
 
 # =========================================================
 # TAB 4 — WEIGHTED SCORING
@@ -991,48 +863,6 @@ with tab4:
     else:
         st.info("ℹ️ Please complete Pre-Screening and Filtering tabs first, then set weights here.")
 
-# === AI: Weighted Scoring reasoning =============================================
-    def _build_scoring_prompt():
-        # sorted_scores: list[(name, score)]
-        # selected_filters: dict
-        # weights: dict(prop -> int)
-        if "final_filtered_composites" not in st.session_state:
-            return None
-        try:
-            # Değişkenler o anki scope’ta; en son hesaplananları yakala:
-            # - 'sorted_scores' isimli değişkeni üstte tanımladıysan erişilebilir olmalı.
-            top_name, top_score = sorted_scores[0]
-        except Exception:
-            return None
-
-        selected_filters = st.session_state.get("selected_filters", {})
-        # en yüksek 3 ağırlığı çıkar
-        try:
-            top_weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:3]
-        except Exception:
-            top_weights = []
-        weight_str = ", ".join([f"{k} ({v}%)" for k, v in top_weights]) if top_weights else "(n/a)"
-
-        # hedef vs aralık tablosu (kısa)
-        dataset = st.session_state.datasets
-        lines = []
-        for prop, (cond, val) in selected_filters.items():
-            rng = dataset[top_name].get(prop, None)
-            if isinstance(rng, tuple):
-                lines.append(f"- {prop}: target={val} ({cond}), material_range={rng[0]}–{rng[1]}")
-        facts = "\n".join(lines) if lines else "- (no target vs range lines)"
-    
-        return (
-            "Weighted multi-criteria ranking for composite selection.\n"
-            f"Top candidate: {top_name} (score {top_score}).\n"
-            f"Most influential criteria by weight: {weight_str}.\n"
-            f"Targets vs {top_name} ranges:\n{facts}\n"
-            "Explain concisely why this candidate ranks first, referencing weights and alignment with targets."
-        )
-
-    ai_expander_ui("🤖 AI Recommendation — Weighted Scoring", "scoring", _build_scoring_prompt)
-# =================================================================================
-
 # =========================================================
 # TAB 5 — MOLD COST ANALYSIS
 # =========================================================
@@ -1050,11 +880,7 @@ with tab5:
                 volume_m3 = volume_mm3 * 1e-9
                 bbox = mesh.bounding_box.extents
                 bbox_mm = [round(x, 2) for x in bbox]
-
-                # STL metrics for AI prompt
-                st.session_state["stl_volume_m3"] = volume_m3
-                st.session_state["stl_bbox_mm"] = bbox_mm
-
+                
                 st.success("✅ STL file successfully processed.")
 
                 col1, col2, col3 = st.columns(3)
@@ -1171,49 +997,6 @@ with tab5:
                     st.dataframe(styled_df, use_container_width=True, height=400)
                 else:
                     st.info("ℹ️ No valid composites to estimate cost. Please complete previous steps.")
-
-# === AI: Mold Cost reasoning =====================================================
-                def _build_moldcost_prompt():
-                    try:
-                        df = results_df.copy()
-                    except Exception:
-                        return None
-                    if df.empty:
-                        return None
-
-                    # en ucuz 3 malzeme
-                    cheapest = df.iloc[0]
-                    top3 = df.head(3)
-
-                    vol = st.session_state.get("stl_volume_m3", None)
-                    bbox = st.session_state.get("stl_bbox_mm", None)
-                    dims = f"{bbox[0]}×{bbox[1]}×{bbox[2]} mm" if bbox else "(n/a)"
-
-                    # yüzdelik fark (1. ile 2. arasındaki maliyet)
-                    delta_txt = ""
-                    if len(df) >= 2:
-                        c1 = float(df.loc[0, "Estimated Production Cost (USD)"])
-                        c2 = float(df.loc[1, "Estimated Production Cost (USD)"])
-                    if c2 > 0:
-                            delta = 100.0 * (c2 - c1) / c2
-                            delta_txt = f" (~{delta:.1f}% cheaper than #2)"
-                    top3_txt = "; ".join([
-                        f"{row['Composite']}=${row['Estimated Production Cost (USD)']:.2f}"
-                        for _, row in top3.iterrows()
-                    ])
-
-                    return (
-                        "Mold cost estimation summary based on STL volume and composite density/cost.\n"
-                        f"STL volume: {vol:.8f} m³; bounding box: {dims}.\n"
-                        f"Cheapest option: {cheapest['Composite']} at ${cheapest['Estimated Production Cost (USD)']:.2f}{delta_txt}.\n"
-                        f"Top-3 cheapest: {top3_txt}.\n"
-                        "Explain concisely which factors (density vs cost/kg) drive these differences, and when a slightly costlier "
-                        "option could still be preferable (e.g., better thermal match or mechanical performance)."
-                    )
-
-                ai_expander_ui("🤖 AI Recommendation — Mold Cost", "moldcost", _build_moldcost_prompt)
-# =================================================================================
-
 
             except Exception as e:
                 st.error(f"❌ Error reading STL file: {e}")
