@@ -1,16 +1,22 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import plotly.graph_objects as go
+import trimesh
+import base64
+import streamlit.components.v1 as components
 
 # ✅ Kullanıcı giriş kontrolü
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("🔒 You must be logged in to access this page.")
     st.stop()
-  
+
 st.set_page_config(page_title="COMPADDITIVE Material Selection", layout="wide")
 st.title("COMPADDITIVE Material Selection")
 
+# ---------------------------
 # 📋 Özellik listesi
+# ---------------------------
 properties = [
     "Coefficient of Thermal Expansion (CTE) (µstrain/°C)",
     "Cost (USD/kg)",
@@ -28,7 +34,9 @@ properties = [
     "Injection Pressure (MPa)"
 ]
 
-# 📁 Gömülü veri seti
+# ---------------------------
+# 📁 Gömülü veri seti (aynı veri)
+# ---------------------------
 if "datasets" not in st.session_state:
     st.session_state.datasets = {
         "PEEK UNFILLED": {
@@ -251,7 +259,7 @@ if "datasets" not in st.session_state:
             "Elongation At Break (%)": (0.860, 3.0),
             "Density (kg/m³)": (1300, 2530),
             "Glass Transition Temperature (°C)": (90, 90),
-            "Melting Temperature (°C)": (278, 280),
+            "Melting Temperature (°C)": (20, 340),
             "Processing Temperature (°C)": (20, 340),
             "Injection Pressure (MPa)": (30, 103)
         },
@@ -481,7 +489,9 @@ if "datasets" not in st.session_state:
         }
     }
 
-# 📤 Excel şablonu oluşturma fonksiyonu
+# ---------------------------
+# 🔧 Yardımcı: Excel şablonu
+# ---------------------------
 def generate_excel_template():
     columns = ["Name"]
     for prop in properties:
@@ -494,471 +504,501 @@ def generate_excel_template():
     output.seek(0)
     return output
 
-# ➕ Kullanıcıya seçim sun
-option = st.radio("Choose how you would like to proceed:", [
-    "Use embedded dataset",
-    "Add manual entry",
-    "Upload dataset from Excel"
+# ---------------------------
+# 🗂️ Sekmeler
+# ---------------------------
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📂 Dataset Management",
+    "🧪 Pre-Screening",
+    "🔎 Filtering",
+    "⚖️ Weighted Scoring",
+    "💰 Mold Cost Analysis"
 ])
 
-# 🔧 Manuel giriş
-if option == "Add manual entry":
-    new_entry = {}
-    composite_name = st.text_input("Enter the name of the new composite")
+# =========================================================
+# TAB 1 — DATASET MANAGEMENT
+# =========================================================
+with tab1:
+    option = st.radio("Choose how you would like to proceed:", [
+        "Use embedded dataset",
+        "Add manual entry",
+        "Upload dataset from Excel"
+    ], key="dataset_option")
 
-    for prop in properties:
-        col1, col2 = st.columns(2)
-        with col1:
-            min_val = st.number_input(f"Min {prop}", key=f"min_{prop}")
-        with col2:
-            max_val = st.number_input(f"Max {prop}", key=f"max_{prop}")
-        new_entry[prop] = (min_val, max_val)
+    # 🔧 Manuel giriş
+    if option == "Add manual entry":
+        new_entry = {}
+        composite_name = st.text_input("Enter the name of the new composite")
 
-    if st.button("Add composite to dataset"):
-        if composite_name and all(isinstance(val, tuple) for val in new_entry.values()):
-            st.session_state.datasets[composite_name] = new_entry
-            st.success(f"✅ {composite_name} added successfully.")
+        for prop in properties:
+            col1, col2 = st.columns(2)
+            with col1:
+                min_val = st.number_input(f"Min {prop}", key=f"min_{prop}")
+            with col2:
+                max_val = st.number_input(f"Max {prop}", key=f"max_{prop}")
+            new_entry[prop] = (min_val, max_val)
 
-# 📥 Excel'den yükleme
-elif option == "Upload dataset from Excel":
-    st.info("""📄 Please download the template, fill in your data, and upload it back.
+        if st.button("Add composite to dataset"):
+            if composite_name and all(isinstance(val, tuple) for val in new_entry.values()):
+                st.session_state.datasets[composite_name] = new_entry
+                st.success(f"✅ {composite_name} added successfully.")
+
+    # 📥 Excel'den yükleme
+    elif option == "Upload dataset from Excel":
+        st.info("""📄 Please download the template, fill in your data, and upload it back.
 
 - Include values for all properties.
 - Do **not change column names**.
 
 📥 You can download the blank Excel file using the button below.""")
 
-    st.download_button(
-        label="📥 Download Excel Template",
-        data=generate_excel_template(),
-        file_name="composite_template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    uploaded_file = st.file_uploader("Upload your completed Excel file here", type=["xlsx"])
-    if uploaded_file:
-        df = pd.read_excel(uploaded_file)
-        for idx, row in df.iterrows():
-            name = row["Name"]
-            entry = {}
-            for prop in properties:
-                entry[prop] = (row[f"{prop} min"], row[f"{prop} max"])
-            st.session_state.datasets[name] = entry
-        st.success("✅ All composites from Excel uploaded successfully.")
-
-# 📌 CANDIDATE COMPOSITES — Tüm kompozitleri yatay tabloda göster
-
-if st.session_state.datasets:
-    st.markdown("### 🧪 **Candidate Composites**")
-
-    all_data = {}
-    for name, prop_dict in st.session_state.datasets.items():
-        all_data[name] = {}
-        for prop in properties:
-            val = prop_dict.get(prop)
-            if val is None:
-                all_data[name][prop] = "N/A"
-            elif isinstance(val, tuple):
-                all_data[name][prop] = f"{val[0]} – {val[1]}"
-            else:
-                all_data[name][prop] = str(val)
-
-    df = pd.DataFrame(all_data)
-    st.dataframe(df, use_container_width=True)
-
-# 📄 Ön Eleme Kriterleri Bilgilendirme Yazısı
-st.markdown("---")
-st.markdown("### 📌 Pre-Screening Criteria")
-st.markdown("""
-1. The **CTE of the composite** must be compatible with the **CTE of CFRP epoxy** with a **maximum variation of 60%**.  
-2. The **cost of the composite** must be **at least 30% lower than the cost of Invar** in terms of **euro/m³**.  
-3. The **composite must not undergo plastic deformation** under **autoclave conditions (180°C and 7 bar)**.
-""")
-
-# --- Sabitler ---
-epoxy_cte = 50  # µstrain/°C
-usd_to_eur = 0.91
-invar_cost_usd_per_kg = 70
-invar_density = 8000
-invar_cost_eur_per_m3 = invar_cost_usd_per_kg * invar_density * usd_to_eur
-threshold_cost = invar_cost_eur_per_m3 * 0.70  # %30 daha düşük olması gerekir
-
-passed_composites = []
-
-for name, props in st.session_state.datasets.items():
-    # --- 1. KRİTER: CTE uyumu ---
-    cte_range = props.get("Coefficient of Thermal Expansion (CTE) (µstrain/°C)")
-    if not isinstance(cte_range, tuple):
-        continue
-    avg_cte = sum(cte_range) / 2
-    cte_lower = epoxy_cte * (1 - 0.6)
-    cte_upper = epoxy_cte * (1 + 0.6)
-    if not (cte_lower <= avg_cte <= cte_upper):
-        continue
-
-    # --- 2. KRİTER: Cost < Invar %30 ---
-    cost_range = props.get("Cost (USD/kg)")
-    density_range = props.get("Density (kg/m³)")
-    if not isinstance(cost_range, tuple) or not isinstance(density_range, tuple):
-        continue
-    avg_cost = sum(cost_range) / 2
-    avg_density = sum(density_range) / 2
-    cost_eur_per_m3 = avg_cost * avg_density * usd_to_eur
-    if cost_eur_per_m3 > threshold_cost:
-        continue
-
-    # --- 3. KRİTER: Otoklav deformasyon testi (interpolasyon) ---
-    hdt_a = props.get("Heat Deflection Temperature A (1.8 MPa) (°C)")
-    hdt_b = props.get("Heat Deflection Temperature B (0.46 MPa) (°C)")
-    if not isinstance(hdt_a, tuple) or not isinstance(hdt_b, tuple):
-        continue
-    avg_hdt_a = sum(hdt_a) / 2
-    avg_hdt_b = sum(hdt_b) / 2
-
-    try:
-        interpolated_temp = avg_hdt_b + ((0.7 - 0.46) / (1.8 - 0.46)) * (avg_hdt_a - avg_hdt_b)
-    except:
-        continue
-
-    if interpolated_temp < 180:
-        continue
-
-    # 🎯 Tüm kriterlerden geçti
-    passed_composites.append(name)
-
-# --- Sonuçları Göster ---
-st.markdown("---")
-st.markdown("### ✅ **Pre-Screening Passed Composites**")
-
-if passed_composites:
-    st.success(f"{len(passed_composites)} composites passed all three criteria:")
-    st.markdown("**" + ", ".join(passed_composites) + "**")
-
-    # 📊 Geçenleri tabloda göster
-    filtered_data = {}
-    for name in passed_composites:
-        filtered_data[name] = {}
-        for prop in properties:
-            val = st.session_state.datasets[name].get(prop)
-            if val is None:
-                filtered_data[name][prop] = "N/A"
-            elif isinstance(val, tuple):
-                filtered_data[name][prop] = f"{val[0]} – {val[1]}"
-            else:
-                filtered_data[name][prop] = str(val)
-    
-    df_passed = pd.DataFrame(filtered_data)
-    st.dataframe(df_passed, use_container_width=True)
-else:
-    st.warning("❌ No composites passed all three pre-screening criteria.")
-
-# 🎯 Özellik bazlı filtreleme (kriter 4+)
-
-filterable_props = [
-    "Cost (USD/kg)",
-    "Interfacial Properties with Carbon Fiber (IFSS, MPa)",
-    "Shrinkage (%)",
-    "Tensile Strength (MPa)",
-    "Flexural Modulus (GPa)",
-    "Elongation At Break (%)",
-    "Density (kg/m³)",
-    "Glass Transition Temperature (°C)",
-    "Melting Temperature (°C)",
-    "Processing Temperature (°C)",
-    "Injection Pressure (MPa)"
-]
-
-st.markdown("### 🔎 Property-Based Filtering (Optional)")
-selected_filters = {}
-
-for prop in filterable_props:
-    if st.checkbox(f"Filter by {prop}"):
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            condition = st.selectbox(f"Condition for {prop}", ["smaller than", "larger than", "equal to"], key=f"cond_{prop}")
-        with col2:
-            value = st.number_input(f"Value for {prop}", key=f"val_{prop}")
-        selected_filters[prop] = (condition, value)
-
-# 🎯 Filtreleri geçenleri belirle (şimdilik sadece listedik)
-filtered_composites = []
-
-for name in passed_composites:  # sadece 3 kriteri geçenlerden filtrele
-    props = st.session_state.datasets[name]
-    match = True
-    for prop, (condition, user_val) in selected_filters.items():
-        value_range = props.get(prop)
-        if not isinstance(value_range, tuple):
-            match = False
-            break
-        min_val, max_val = value_range
-        if condition == "smaller than":
-            if min_val > user_val:
-                match = False
-                break
-        elif condition == "larger than":
-            if max_val < user_val:
-                match = False
-                break
-        elif condition == "equal to":
-            if not (min_val <= user_val <= max_val):
-                match = False
-                break
-    if match:
-        filtered_composites.append(name)
-
-# 🎯 Filtre sonrası sonucu tutalım (gösterim sonra)
-final_filtered_composites = filtered_composites
-
-# 🔎 Filtering sonucunu yazı olarak göster (tablo olmadan)
-
-st.markdown("---")
-st.markdown("### 🔎 **Filtering Passed Composites**")
-
-if final_filtered_composites:
-    st.success(f"{len(final_filtered_composites)} composites matched all selected filter conditions:")
-    st.markdown("**" + ", ".join(final_filtered_composites) + "**")
-else:
-    st.warning("❌ No composites matched the filtering criteria.")
-
-import plotly.graph_objects as go
-
-# ⚖️ Ağırlık verme ve skor hesaplama (butonsuz otomatik başlar)
-if selected_filters and final_filtered_composites:
-    st.subheader("⚖️ Set importance (weight) for each selected property")
-
-    weights = {}
-    total_weight = 0
-
-    for prop in selected_filters.keys():
-        weight = st.number_input(
-            f"Weight for '{prop}' (0–100)",
-            min_value=0,
-            max_value=100,
-            value=st.session_state.get(f"weight_{prop}", 0),
-            step=1,
-            key=f"weight_{prop}"
+        st.download_button(
+            label="📥 Download Excel Template",
+            data=generate_excel_template(),
+            file_name="composite_template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        weights[prop] = weight
-        total_weight += weight
 
-    st.markdown(f"📊 **Total weight: {total_weight}/100**")
+        uploaded_file = st.file_uploader("Upload your completed Excel file here", type=["xlsx"])
+        if uploaded_file:
+            df = pd.read_excel(uploaded_file)
+            for idx, row in df.iterrows():
+                name = row["Name"]
+                entry = {}
+                for prop in properties:
+                    entry[prop] = (row[f"{prop} min"], row[f"{prop} max"])
+                st.session_state.datasets[name] = entry
+            st.success("✅ All composites from Excel uploaded successfully.")
 
-    if total_weight != 100:
-        st.warning("⚠️ Total weight must be exactly 100 to proceed.")
+    # 📌 CANDIDATE COMPOSITES — Tüm kompozitleri yatay tabloda göster
+    if st.session_state.datasets:
+        st.markdown("### 🧪 **Candidate Composites**")
+        all_data = {}
+        for name, prop_dict in st.session_state.datasets.items():
+            all_data[name] = {}
+            for prop in properties:
+                val = prop_dict.get(prop)
+                if val is None:
+                    all_data[name][prop] = "N/A"
+                elif isinstance(val, tuple):
+                    all_data[name][prop] = f"{val[0]} – {val[1]}"
+                else:
+                    all_data[name][prop] = str(val)
+        df_candidates = pd.DataFrame(all_data)
+        st.dataframe(df_candidates, use_container_width=True)
+
+# =========================================================
+# TAB 2 — PRE-SCREENING
+# =========================================================
+with tab2:
+    # 📄 Ön Eleme Kriterleri Bilgilendirme Yazısı
+    st.markdown("### 📌 Pre-Screening Criteria")
+    st.markdown("""
+    1. The **CTE of the composite** must be compatible with the **CTE of CFRP epoxy** with a **maximum variation of 60%**.  
+    2. The **cost of the composite** must be **at least 30% lower than the cost of Invar** in terms of **euro/m³**.  
+    3. The **composite must not undergo plastic deformation** under **autoclave conditions (180°C and 7 bar)**.
+    """)
+
+    # --- Sabitler ---
+    epoxy_cte = 50  # µstrain/°C
+    usd_to_eur = 0.91
+    invar_cost_usd_per_kg = 70
+    invar_density = 8000
+    invar_cost_eur_per_m3 = invar_cost_usd_per_kg * invar_density * usd_to_eur
+    threshold_cost = invar_cost_eur_per_m3 * 0.70  # %30 daha düşük olması gerekir
+
+    passed_composites = []
+
+    for name, props in st.session_state.datasets.items():
+        # --- 1. KRİTER: CTE uyumu ---
+        cte_range = props.get("Coefficient of Thermal Expansion (CTE) (µstrain/°C)")
+        if not isinstance(cte_range, tuple):
+            continue
+        avg_cte = sum(cte_range) / 2
+        cte_lower = epoxy_cte * (1 - 0.6)
+        cte_upper = epoxy_cte * (1 + 0.6)
+        if not (cte_lower <= avg_cte <= cte_upper):
+            continue
+
+        # --- 2. KRİTER: Cost < Invar %30 ---
+        cost_range = props.get("Cost (USD/kg)")
+        density_range = props.get("Density (kg/m³)")
+        if not isinstance(cost_range, tuple) or not isinstance(density_range, tuple):
+            continue
+        avg_cost = sum(cost_range) / 2
+        avg_density = sum(density_range) / 2
+        cost_eur_per_m3 = avg_cost * avg_density * usd_to_eur
+        if cost_eur_per_m3 > threshold_cost:
+            continue
+
+        # --- 3. KRİTER: Otoklav deformasyon testi (interpolasyon) ---
+        hdt_a = props.get("Heat Deflection Temperature A (1.8 MPa) (°C)")
+        hdt_b = props.get("Heat Deflection Temperature B (0.46 MPa) (°C)")
+        if not isinstance(hdt_a, tuple) or not isinstance(hdt_b, tuple):
+            continue
+        avg_hdt_a = sum(hdt_a) / 2
+        avg_hdt_b = sum(hdt_b) / 2
+
+        try:
+            interpolated_temp = avg_hdt_b + ((0.7 - 0.46) / (1.8 - 0.46)) * (avg_hdt_a - avg_hdt_b)
+        except:
+            continue
+
+        if interpolated_temp < 180:
+            continue
+
+        # 🎯 Tüm kriterlerden geçti
+        passed_composites.append(name)
+
+    st.markdown("---")
+    st.markdown("### ✅ **Pre-Screening Passed Composites**")
+
+    if passed_composites:
+        st.success(f"{len(passed_composites)} composites passed all three criteria:")
+        st.markdown("**" + ", ".join(passed_composites) + "**")
+
+        # 📊 Geçenleri tabloda göster
+        filtered_data = {}
+        for name in passed_composites:
+            filtered_data[name] = {}
+            for prop in properties:
+                val = st.session_state.datasets[name].get(prop)
+                if val is None:
+                    filtered_data[name][prop] = "N/A"
+                elif isinstance(val, tuple):
+                    filtered_data[name][prop] = f"{val[0]} – {val[1]}"
+                else:
+                    filtered_data[name][prop] = str(val)
+        df_passed = pd.DataFrame(filtered_data)
+        st.dataframe(df_passed, use_container_width=True)
     else:
-        def evaluate_score(condition, user_val, min_val, max_val):
-            if user_val is None or min_val is None or max_val is None:
-                return 0.0
-            if min_val == max_val:
-                return 1.05 if user_val == min_val else max(0.0, 1 - abs(user_val - min_val) / abs(min_val))
-            range_val = max_val - min_val
-            center = (min_val + max_val) / 2
+        st.warning("❌ No composites passed all three pre-screening criteria.")
+
+    # Sonraki sekmelerin kullanabilmesi için sakla
+    st.session_state["passed_composites"] = passed_composites
+
+# =========================================================
+# TAB 3 — FILTERING
+# =========================================================
+with tab3:
+    filterable_props = [
+        "Cost (USD/kg)",
+        "Interfacial Properties with Carbon Fiber (IFSS, MPa)",
+        "Shrinkage (%)",
+        "Tensile Strength (MPa)",
+        "Flexural Modulus (GPa)",
+        "Elongation At Break (%)",
+        "Density (kg/m³)",
+        "Glass Transition Temperature (°C)",
+        "Melting Temperature (°C)",
+        "Processing Temperature (°C)",
+        "Injection Pressure (MPa)"
+    ]
+
+    st.markdown("### 🔎 Property-Based Filtering (Optional)")
+    selected_filters = {}
+
+    for prop in filterable_props:
+        if st.checkbox(f"Filter by {prop}", key=f"chk_{prop}"):
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                condition = st.selectbox(
+                    f"Condition for {prop}",
+                    ["smaller than", "larger than", "equal to"],
+                    key=f"cond_{prop}"
+                )
+            with col2:
+                value = st.number_input(f"Value for {prop}", key=f"val_{prop}")
+            selected_filters[prop] = (condition, value)
+
+    # 🎯 Filtreleri geçenleri belirle (sadece pre-screening'i geçenler)
+    filtered_composites = []
+    base_pool = st.session_state.get("passed_composites", [])
+
+    for name in base_pool:
+        props = st.session_state.datasets[name]
+        match = True
+        for prop, (condition, user_val) in selected_filters.items():
+            value_range = props.get(prop)
+            if not isinstance(value_range, tuple):
+                match = False
+                break
+            min_val, max_val = value_range
             if condition == "smaller than":
-                if user_val <= min_val:
-                    return 1.0
-                elif user_val > max_val:
-                    return max(0.0, 1 - (user_val - max_val) / range_val)
-                else:
-                    return 1 - (user_val - min_val) / range_val
+                if min_val > user_val:
+                    match = False
+                    break
             elif condition == "larger than":
-                if user_val >= max_val:
-                    return 1.0
-                elif user_val < min_val:
-                    return max(0.0, 1 - (min_val - user_val) / range_val)
-                else:
-                    return 1 - (max_val - user_val) / range_val
+                if max_val < user_val:
+                    match = False
+                    break
             elif condition == "equal to":
-                diff = abs(user_val - center)
-                normalized = 1 - (diff / range_val)
-                return 1.05 if diff == 0 else max(0.0, normalized)
-            return 0.0
+                if not (min_val <= user_val <= max_val):
+                    match = False
+                    break
+        if match:
+            filtered_composites.append(name)
 
-        # 🔢 Skorları hesapla
-        scores = {}
-        contribution_table = {}
+    final_filtered_composites = filtered_composites
 
-        for name in final_filtered_composites:
-            total_score = 0
-            contribution_table[name] = {}
+    st.markdown("---")
+    st.markdown("### 🔎 **Filtering Passed Composites**")
+    if final_filtered_composites:
+        st.success(f"{len(final_filtered_composites)} composites matched all selected filter conditions:")
+        st.markdown("**" + ", ".join(final_filtered_composites) + "**")
+    else:
+        st.warning("❌ No composites matched the filtering criteria.")
 
-            for prop, (condition, user_val) in selected_filters.items():
-                min_val, max_val = st.session_state.datasets[name].get(prop, (None, None))
-                score = evaluate_score(condition, user_val, min_val, max_val)
-                weight = weights[prop] / 100
-                total_score += score * weight
-                contribution_table[name][prop] = round(score * weight * 100, 2)
+    # Skor ve Maliyet sekmeleri için sakla
+    st.session_state["selected_filters"] = selected_filters
+    st.session_state["final_filtered_composites"] = final_filtered_composites
 
-            scores[name] = round(total_score * 100, 2)
+# =========================================================
+# TAB 4 — WEIGHTED SCORING
+# =========================================================
+with tab4:
+    selected_filters = st.session_state.get("selected_filters", {})
+    final_filtered_composites = st.session_state.get("final_filtered_composites", [])
 
-        # 🏆 Skorları sırala
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
-        st.subheader("🏆 Ranked Composites by Weighted Scoring")
-        for i, (name, score) in enumerate(sorted_scores, 1):
-            st.write(f"{i}. **{name}** — Score: {score:.2f} / 100")
-
-        # 📊 Stacked bar chart otomatik göster
-        st.subheader("📊 Composite Score Breakdown")
-
-        fig = go.Figure()
-        sorted_names = [k for k, _ in sorted_scores]
+    if selected_filters and final_filtered_composites:
+        st.subheader("⚖️ Set importance (weight) for each selected property")
+        weights = {}
+        total_weight = 0
 
         for prop in selected_filters.keys():
-            y_vals = [contribution_table[name][prop] for name in sorted_names]
-            hover_texts = [
-                f"{prop}<br>Contribution: {contribution_table[name][prop]}<br>Weight: {weights[prop]}"
-                for name in sorted_names
-            ]
-            fig.add_trace(go.Bar(
-                name=prop,
-                x=sorted_names,
-                y=y_vals,
-                hovertext=hover_texts,
-                hoverinfo="text"
-            ))
+            weight = st.number_input(
+                f"Weight for '{prop}' (0–100)",
+                min_value=0,
+                max_value=100,
+                value=st.session_state.get(f"weight_{prop}", 0),
+                step=1,
+                key=f"weight_{prop}"
+            )
+            weights[prop] = weight
+            total_weight += weight
 
-        fig.update_layout(
-            barmode='stack',
-            xaxis_title="Composite",
-            yaxis_title="Total Score (out of 100)",
-            title="📊 Composite Score Breakdown",
-            height=600
-        )
+        st.markdown(f"📊 **Total weight: {total_weight}/100**")
 
-        st.plotly_chart(fig, use_container_width=True)
+        if total_weight != 100:
+            st.warning("⚠️ Total weight must be exactly 100 to proceed.")
+        else:
+            def evaluate_score(condition, user_val, min_val, max_val):
+                if user_val is None or min_val is None or max_val is None:
+                    return 0.0
+                if min_val == max_val:
+                    return 1.05 if user_val == min_val else max(0.0, 1 - abs(user_val - min_val) / (abs(min_val) if min_val != 0 else 1))
+                range_val = max_val - min_val
+                center = (min_val + max_val) / 2
+                if condition == "smaller than":
+                    if user_val <= min_val:
+                        return 1.0
+                    elif user_val > max_val:
+                        return max(0.0, 1 - (user_val - max_val) / range_val)
+                    else:
+                        return 1 - (user_val - min_val) / range_val
+                elif condition == "larger than":
+                    if user_val >= max_val:
+                        return 1.0
+                    elif user_val < min_val:
+                        return max(0.0, 1 - (min_val - user_val) / range_val)
+                    else:
+                        return 1 - (max_val - user_val) / range_val
+                elif condition == "equal to":
+                    diff = abs(user_val - center)
+                    normalized = 1 - (diff / range_val)
+                    return 1.05 if diff == 0 else max(0.0, normalized)
+                return 0.0
 
-import trimesh
+            # 🔢 Skorları hesapla
+            scores = {}
+            contribution_table = {}
 
-# 💰 MOLD COST ANALİZİ
-with st.expander("💰 Calculate Mold Production Cost"):
-    st.markdown("Upload your STL file below. The volume and dimensions will be extracted automatically.")
-
-    uploaded_stl = st.file_uploader("📦 Upload STL file", type=["stl"], key="stl_upload")
-
-    if uploaded_stl and final_filtered_composites:
-        try:
-            mesh = trimesh.load(uploaded_stl, file_type='stl', force='mesh')
-            volume_mm3 = mesh.volume
-            volume_m3 = volume_mm3 * 1e-9
-            bbox = mesh.bounding_box.extents
-            bbox_mm = [round(x, 2) for x in bbox]
-
-            st.success("✅ STL file successfully processed.")
-
-            col1, col2, col3 = st.columns(3)
-            col1.metric(label="📏 Width (X)", value=f"{bbox_mm[0]} mm")
-            col2.metric(label="📐 Depth (Y)", value=f"{bbox_mm[1]} mm")
-            col3.metric(label="📏 Height (Z)", value=f"{bbox_mm[2]} mm")
-
-            st.markdown("### 📦 Mold Volume")
-            st.markdown(f"<div style='font-size:20px; color:#4CAF50; font-weight:bold;'>"
-                        f"{volume_m3:.8f} m³</div>", unsafe_allow_html=True)
-
-            # ✅ STL 3D ÖNİZLEME BÖLÜMÜ
-            import streamlit.components.v1 as components
-            import base64
-
-            st.markdown("### 🧩 STL Preview (3D)")
-            stl_bytes = uploaded_stl.getvalue()
-            encoded = base64.b64encode(stl_bytes).decode()
-
-            html_string = f"""
-            <html>
-              <head>
-                <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/build/three.min.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/examples/js/controls/OrbitControls.js"></script>
-                <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/examples/js/loaders/STLLoader.js"></script>
-              </head>
-              <body>
-                <div id="container" style="width:100%; height:500px;"></div>
-                <script>
-                  var scene = new THREE.Scene();
-                  var camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-                  var renderer = new THREE.WebGLRenderer();
-                  renderer.setSize(window.innerWidth, 500);
-                  document.getElementById("container").appendChild(renderer.domElement);
-
-                  var controls = new THREE.OrbitControls(camera, renderer.domElement);
-
-                  var loader = new THREE.STLLoader();
-                  var dataUri = "data:application/octet-stream;base64,{encoded}";
-
-                  loader.load(dataUri, function (geometry) {{
-                      var material = new THREE.MeshNormalMaterial({{wireframe: false}});
-                      var mesh = new THREE.Mesh(geometry, material);
-                      geometry.computeBoundingBox();
-                      var center = new THREE.Vector3();
-                      geometry.boundingBox.getCenter(center);
-                      mesh.position.sub(center);
-                      scene.add(mesh);
-                      camera.position.z = 100;
-                      animate();
-                  }});
-
-                  function animate() {{
-                      requestAnimationFrame(animate);
-                      controls.update();
-                      renderer.render(scene, camera);
-                  }}
-                </script>
-              </body>
-            </html>
-            """
-            components.html(html_string, height=550)
-
-            # Üretim maliyetlerini hesapla
-            results = []
             for name in final_filtered_composites:
-                props = st.session_state.datasets[name]
-                cost_range = props.get("Cost (USD/kg)")
-                density_range = props.get("Density (kg/m³)")
+                total_score = 0
+                contribution_table[name] = {}
 
-                if not isinstance(cost_range, tuple) or not isinstance(density_range, tuple):
-                    continue
+                for prop, (condition, user_val) in selected_filters.items():
+                    min_val, max_val = st.session_state.datasets[name].get(prop, (None, None))
+                    score = evaluate_score(condition, user_val, min_val, max_val)
+                    weight = weights[prop] / 100
+                    total_score += score * weight
+                    contribution_table[name][prop] = round(score * weight * 100, 2)
 
-                avg_cost = sum(cost_range) / 2
-                avg_density = sum(density_range) / 2
-                mass = volume_m3 * avg_density
-                total_cost = mass * avg_cost
+                scores[name] = round(total_score * 100, 2)
 
-                results.append({
-                    "Composite": name,
-                    "Average Density (kg/m³)": round(avg_density, 2),
-                    "Average Cost (USD/kg)": round(avg_cost, 2),
-                    "Estimated Mass (kg)": round(mass, 4),
-                    "Estimated Production Cost (USD)": round(total_cost, 2)
-                })
+            # 🏆 Skorları sırala
+            sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
-            results_df = pd.DataFrame(results).sort_values(by="Estimated Production Cost (USD)").reset_index(drop=True)
+            st.subheader("🏆 Ranked Composites by Weighted Scoring")
+            for i, (name, score) in enumerate(sorted_scores, 1):
+                st.write(f"{i}. **{name}** — Score: {score:.2f} / 100")
 
-            st.markdown("### 💸 Estimated Mold Production Cost per Composite")
+            # 📊 Stacked bar chart
+            st.subheader("📊 Composite Score Breakdown")
+            fig = go.Figure()
+            sorted_names = [k for k, _ in sorted_scores]
 
-            styled_df = results_df.style\
-                .format({
-                    "Average Density (kg/m³)": "{:.0f}",
-                    "Average Cost (USD/kg)": "{:.2f}",
-                    "Estimated Mass (kg)": "{:.4f}",
-                    "Estimated Production Cost (USD)": "${:.2f}"
-                })\
-                .set_properties(**{
-                    "text-align": "center",
-                    "font-family": "Arial",
-                    "background-color": "#111",
-                    "color": "white",
-                    "border-color": "#444"
-                })\
-                .set_table_styles([{
-                    "selector": "th",
-                    "props": [
-                        ("text-align", "center"),
-                        ("background-color", "#222"),
-                        ("color", "white"),
-                        ("font-size", "14px")
-                    ]
-                }])
+            for prop in selected_filters.keys():
+                y_vals = [contribution_table[name][prop] for name in sorted_names]
+                hover_texts = [
+                    f"{prop}<br>Contribution: {contribution_table[name][prop]}<br>Weight: {weights[prop]}"
+                    for name in sorted_names
+                ]
+                fig.add_trace(go.Bar(
+                    name=prop,
+                    x=sorted_names,
+                    y=y_vals,
+                    hovertext=hover_texts,
+                    hoverinfo="text"
+                ))
 
-            st.dataframe(styled_df, use_container_width=True, height=400)
+            fig.update_layout(
+                barmode='stack',
+                xaxis_title="Composite",
+                yaxis_title="Total Score (out of 100)",
+                title="📊 Composite Score Breakdown",
+                height=600
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("ℹ️ Please complete Pre-Screening and Filtering tabs first, then set weights here.")
 
-        except Exception as e:
-            st.error(f"❌ Error reading STL file: {e}")
+# =========================================================
+# TAB 5 — MOLD COST ANALYSIS
+# =========================================================
+with tab5:
+    final_filtered_composites = st.session_state.get("final_filtered_composites", [])
+
+    with st.expander("💰 Calculate Mold Production Cost", expanded=True):
+        st.markdown("Upload your STL file below. The volume and dimensions will be extracted automatically.")
+        uploaded_stl = st.file_uploader("📦 Upload STL file", type=["stl"], key="stl_upload")
+
+        if uploaded_stl and final_filtered_composites:
+            try:
+                mesh = trimesh.load(uploaded_stl, file_type='stl', force='mesh')
+                volume_mm3 = mesh.volume
+                volume_m3 = volume_mm3 * 1e-9
+                bbox = mesh.bounding_box.extents
+                bbox_mm = [round(x, 2) for x in bbox]
+
+                st.success("✅ STL file successfully processed.")
+
+                col1, col2, col3 = st.columns(3)
+                col1.metric(label="📏 Width (X)", value=f"{bbox_mm[0]} mm")
+                col2.metric(label="📐 Depth (Y)", value=f"{bbox_mm[1]} mm")
+                col3.metric(label="📏 Height (Z)", value=f"{bbox_mm[2]} mm")
+
+                st.markdown("### 📦 Mold Volume")
+                st.markdown(
+                    f"<div style='font-size:20px; color:#4CAF50; font-weight:bold;'>{volume_m3:.8f} m³</div>",
+                    unsafe_allow_html=True
+                )
+
+                # ✅ STL 3D ÖNİZLEME BÖLÜMÜ
+                st.markdown("### 🧩 STL Preview (3D)")
+                stl_bytes = uploaded_stl.getvalue()
+                encoded = base64.b64encode(stl_bytes).decode()
+
+                html_string = f"""
+                <html>
+                  <head>
+                    <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/build/three.min.js"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/examples/js/controls/OrbitControls.js"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/three@0.112.1/examples/js/loaders/STLLoader.js"></script>
+                  </head>
+                  <body>
+                    <div id="container" style="width:100%; height:500px;"></div>
+                    <script>
+                      var scene = new THREE.Scene();
+                      var camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+                      var renderer = new THREE.WebGLRenderer();
+                      renderer.setSize(window.innerWidth, 500);
+                      document.getElementById("container").appendChild(renderer.domElement);
+
+                      var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+                      var loader = new THREE.STLLoader();
+                      var dataUri = "data:application/octet-stream;base64,{encoded}";
+
+                      loader.load(dataUri, function (geometry) {{
+                          var material = new THREE.MeshNormalMaterial({{wireframe: false}});
+                          var mesh = new THREE.Mesh(geometry, material);
+                          geometry.computeBoundingBox();
+                          var center = new THREE.Vector3();
+                          geometry.boundingBox.getCenter(center);
+                          mesh.position.sub(center);
+                          scene.add(mesh);
+                          camera.position.z = 100;
+                          animate();
+                      }});
+
+                      function animate() {{
+                          requestAnimationFrame(animate);
+                          controls.update();
+                          renderer.render(scene, camera);
+                      }}
+                    </script>
+                  </body>
+                </html>
+                """
+                components.html(html_string, height=550)
+
+                # Üretim maliyetlerini hesapla
+                results = []
+                for name in final_filtered_composites:
+                    props = st.session_state.datasets[name]
+                    cost_range = props.get("Cost (USD/kg)")
+                    density_range = props.get("Density (kg/m³)")
+
+                    if not isinstance(cost_range, tuple) or not isinstance(density_range, tuple):
+                        continue
+
+                    avg_cost = sum(cost_range) / 2
+                    avg_density = sum(density_range) / 2
+                    mass = volume_m3 * avg_density
+                    total_cost = mass * avg_cost
+
+                    results.append({
+                        "Composite": name,
+                        "Average Density (kg/m³)": round(avg_density, 2),
+                        "Average Cost (USD/kg)": round(avg_cost, 2),
+                        "Estimated Mass (kg)": round(mass, 4),
+                        "Estimated Production Cost (USD)": round(total_cost, 2)
+                    })
+
+                if results:
+                    results_df = pd.DataFrame(results).sort_values(by="Estimated Production Cost (USD)").reset_index(drop=True)
+                    st.markdown("### 💸 Estimated Mold Production Cost per Composite")
+
+                    styled_df = results_df.style\
+                        .format({
+                            "Average Density (kg/m³)": "{:.0f}",
+                            "Average Cost (USD/kg)": "{:.2f}",
+                            "Estimated Mass (kg)": "{:.4f}",
+                            "Estimated Production Cost (USD)": "${:.2f}"
+                        })\
+                        .set_properties(**{
+                            "text-align": "center",
+                            "font-family": "Arial",
+                            "background-color": "#111",
+                            "color": "white",
+                            "border-color": "#444"
+                        })\
+                        .set_table_styles([{
+                            "selector": "th",
+                            "props": [
+                                ("text-align", "center"),
+                                ("background-color", "#222"),
+                                ("color", "white"),
+                                ("font-size", "14px")
+                            ]
+                        }])
+
+                    st.dataframe(styled_df, use_container_width=True, height=400)
+                else:
+                    st.info("ℹ️ No valid composites to estimate cost. Please complete previous steps.")
+
+            except Exception as e:
+                st.error(f"❌ Error reading STL file: {e}")
+        else:
+            st.info("ℹ️ Please select composites in Filtering tab and upload an STL file to see cost analysis.")
