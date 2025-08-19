@@ -631,20 +631,32 @@ with tab2:
         if cost_eur_per_m3 > threshold_cost:
             continue
 
-        # --- 3. KRİTER: Otoklav deformasyon testi (interpolasyon) ---
+        # --- 3. KRİTER: Otoklav deformasyon testi (N/A toleranslı kural) ---
         hdt_a = props.get("Heat Deflection Temperature A (1.8 MPa) (°C)")
         hdt_b = props.get("Heat Deflection Temperature B (0.46 MPa) (°C)")
-        if not isinstance(hdt_a, tuple) or not isinstance(hdt_b, tuple):
-            continue
-        avg_hdt_a = sum(hdt_a) / 2
-        avg_hdt_b = sum(hdt_b) / 2
 
-        try:
-            interpolated_temp = avg_hdt_b + ((0.7 - 0.46) / (1.8 - 0.46)) * (avg_hdt_a - avg_hdt_b)
-        except:
-            continue
+        avg_hdt_a = None
+        avg_hdt_b = None
+        if isinstance(hdt_a, tuple):
+            avg_hdt_a = sum(hdt_a) / 2
+        if isinstance(hdt_b, tuple):
+            avg_hdt_b = sum(hdt_b) / 2
 
-        if interpolated_temp < 180:
+        def passes_hdt_rule(avg_hdt_a, avg_hdt_b, min_required=180.0):
+            # 1) Eğer A mevcut ve yeterince yüksekse → geçer
+            if avg_hdt_a is not None and avg_hdt_a >= min_required:
+                return True
+            # 2) Eğer sadece B mevcutsa ve yeterince yüksekse → geçer
+            if avg_hdt_b is not None and avg_hdt_b >= min_required:
+                return True
+            # 3) İkisi de varsa interpolasyon uygula
+            if (avg_hdt_a is not None) and (avg_hdt_b is not None):
+                interpolated_temp = avg_hdt_b + ((0.7 - 0.46) / (1.8 - 0.46)) * (avg_hdt_a - avg_hdt_b)
+                return interpolated_temp >= min_required
+            # 4) Veriler yetersiz → kalır
+            return False
+
+        if not passes_hdt_rule(avg_hdt_a, avg_hdt_b, min_required=180.0):
             continue
 
         # 🎯 Tüm kriterlerden geçti
