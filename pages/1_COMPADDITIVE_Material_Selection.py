@@ -39,6 +39,38 @@ properties = [
 # ---------------------------
 if "datasets" not in st.session_state:
     st.session_state.datasets = {
+        "PEKK UNFILLED": {
+            "Coefficient of Thermal Expansion (CTE) (µstrain/°C)": (21, 77),
+            "Cost (USD/kg)": (54.50, 81.75),
+            "Heat Deflection Temperature A (1.8 MPa) (°C)": (139, 185),
+            "Heat Deflection Temperature B (0.46 MPa) (°C)": (150, 277),
+            "Interfacial Properties with Carbon Fiber (IFSS, MPa)": (80.0, 80.0),
+            "Shrinkage (%)": (0.5 1.6),
+            "Tensile Strength (MPa)": (40.6, 111),
+            "Flexural Modulus (GPa)": (2.50, 5.54),
+            "Elongation At Break (%)": (0.58, 4.89),
+            "Density (kg/m³)": (1270, 1310),
+            "Glass Transition Temperature (°C)": (149, 160),
+            "Melting Temperature (°C)": (300, 360),
+            "Processing Temperature (°C)": (350, 400),
+            "Injection Pressure (MPa)": (103, 138)
+        },
+        "PEKK 20-40% CF": {
+            "Coefficient of Thermal Expansion (CTE) (µstrain/°C)": (9, 45),
+            "Cost (USD/kg)": (54.50, 81.75),
+            "Heat Deflection Temperature A (1.8 MPa) (°C)": (202, 327),
+            "Heat Deflection Temperature B (0.46 MPa) (°C)": None,
+            "Interfacial Properties with Carbon Fiber (IFSS, MPa)": (80.0, 80.0),
+            "Shrinkage (%)": (0.05, 0.3),
+            "Tensile Strength (MPa)": (59, 324),
+            "Flexural Modulus (GPa)": (5.13, 31),
+            "Elongation At Break (%)": (1.06, 2.5),
+            "Density (kg/m³)": (1360, 1620),
+            "Glass Transition Temperature (°C)": (160, 160),
+            "Melting Temperature (°C)": (302, 360),
+            "Processing Temperature (°C)": (350, 400),
+            "Injection Pressure (MPa)": (103, 138)
+        },
         "PEEK UNFILLED": {
             "Coefficient of Thermal Expansion (CTE) (µstrain/°C)": (40, 60),
             "Cost (USD/kg)": (54.50, 81.75),
