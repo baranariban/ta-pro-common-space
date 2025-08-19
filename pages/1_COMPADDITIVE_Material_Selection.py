@@ -45,7 +45,7 @@ if "datasets" not in st.session_state:
             "Heat Deflection Temperature A (1.8 MPa) (°C)": (139, 185),
             "Heat Deflection Temperature B (0.46 MPa) (°C)": (150, 277),
             "Interfacial Properties with Carbon Fiber (IFSS, MPa)": (80.0, 80.0),
-            "Shrinkage (%)": (0.5 1.6),
+            "Shrinkage (%)": (0.5, 1.6),
             "Tensile Strength (MPa)": (40.6, 111),
             "Flexural Modulus (GPa)": (2.50, 5.54),
             "Elongation At Break (%)": (0.58, 4.89),
