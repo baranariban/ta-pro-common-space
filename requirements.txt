@@ -6,3 +6,4 @@ plotly
 trimesh
 numpy
 scipy
+base64
