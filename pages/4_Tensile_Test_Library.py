@@ -1,4 +1,3 @@
-# 4_Tensile_Test_Library.py
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,7 +13,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
     
 st.set_page_config(page_title="Tensile Test Library", page_icon="🔬", layout="wide")
-st.title("🔬 Tensile Test Library")
+st.title("Tensile Test Library")
 
 # Klasör ve metadata ayarları
 UPLOAD_DIR = "uploaded_tensile_files"
