@@ -6,6 +6,4 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
   
 st.set_page_config(page_title="Fatigue Test Library", page_icon="🔬", layout="wide")
-st.title("🔬 Fatigue Test Library")
-
-st.write("Bu sayfada yorulma testi veritabanı yer alacak.")
+st.title("Fatigue Test Library")
