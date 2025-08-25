@@ -541,7 +541,7 @@ def generate_excel_template():
 # ---------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📂 Dataset Management",
-    "🧪 Pre-Screening",
+    "🚩 Pre-Screening",
     "🔎 Filtering",
     "⚖️ Weighted Scoring",
     "💰 Mold Cost Analysis"
@@ -928,11 +928,11 @@ with tab5:
                 st.success("✅ STL file successfully processed.")
 
                 col1, col2, col3 = st.columns(3)
-                col1.metric(label="Width (X)", value=f"{bbox_mm[0]} mm")
-                col2.metric(label="Depth (Y)", value=f"{bbox_mm[1]} mm")
-                col3.metric(label="Height (Z)", value=f"{bbox_mm[2]} mm")
+                col1.metric(label="Width (x)", value=f"{bbox_mm[0]} mm")
+                col2.metric(label="Depth (y)", value=f"{bbox_mm[1]} mm")
+                col3.metric(label="Height (z)", value=f"{bbox_mm[2]} mm")
 
-                st.markdown("### Mold Volume")
+                st.markdown("###Mold Volume")
                 st.markdown(
                     f"<div style='font-size:20px; color:#4CAF50; font-weight:bold;'>{volume_m3:.8f} m³</div>",
                     unsafe_allow_html=True
