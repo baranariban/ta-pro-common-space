@@ -2,7 +2,7 @@
 
 # Kullanıcı adı - şifre sözlüğü
 USER_CREDENTIALS = {
-    "baranariban": "smart",
+    "alibaranariban": "smart",
     "alioguz": "smart",
     "neciphayran": "smart",
     "sertacaltinok": "smart",
@@ -10,7 +10,7 @@ USER_CREDENTIALS = {
     "ahmetcangunaydin": "smart",
     "busraunlu": "smart",
     "hakanyavas": "smart",
-    "irmaksargin": "metumete"
+    "irmaksargin": "smart"
 }
 
 def check_credentials(username, password):
