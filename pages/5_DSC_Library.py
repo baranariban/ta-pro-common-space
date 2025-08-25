@@ -533,3 +533,117 @@ if not meta_df.empty:
         c6.metric("Crystallinity (%)", fmt(res["Crystallinity"], "%"))
 
     st.info("ℹ️ Enthalpy integrals are reported in **J/g** (unit-corrected).")
+
+# ================================
+# 8) Standard Report (Single-Set)
+# ================================
+st.markdown("---")
+st.subheader("🧾 Standard Report (Single Set) — Type III convention")
+
+# Segmentlere kolay erişim
+seg = {r["name"]: r for r in results}
+h1 = seg.get("Heating 1")
+cool = seg.get("Cooling")
+h2 = seg.get("Heating 2")
+
+def _get(seg_obj, key):
+    if seg_obj is None:
+        return np.nan
+    val = seg_obj.get(key, np.nan)
+    try:
+        return float(val) if not np.isnan(val) else np.nan
+    except Exception:
+        return np.nan
+
+# Type III raporlama seçimleri
+tg_val   = _get(h2 if h2 is not None else h1, "Tg")
+tm_val   = _get(h2 if h2 is not None else h1, "Tm")
+tc_val   = _get(cool, "Tc")
+dhm_val  = _get(h2 if h2 is not None else h1, "ΔHm")
+# ΔHcc ikinci ısıtmada yoksa (genelde yoktur) 1. ısıtmadan al
+dhcc_2nd = _get(h2, "ΔHcc")
+dhcc_1st = _get(h1, "ΔHcc")
+dhcc_val = dhcc_2nd if not np.isnan(dhcc_2nd) else dhcc_1st
+
+# Kristallenme (%) = (ΔHm − ΔHcc) / ΔH°_fus × 100
+DH_ref = DHfus_ref.get(material)
+if DH_ref is None or np.isnan(DH_ref) or np.isnan(dhm_val):
+    xc_val = np.nan
+else:
+    _dhcc = 0.0 if np.isnan(dhcc_val) else dhcc_val
+    xc_val = (dhm_val - _dhcc) / DH_ref * 100.0
+
+# Üst bilgi
+top_cols = st.columns(4)
+top_cols[0].metric("Type", "III")
+top_cols[1].metric("Material", material)
+top_cols[2].metric("Sample Mass", fmt(mass_mg, "mg"))
+top_cols[3].metric("Heating Rate", fmt(rate_C_per_min, "°C/min"))
+
+# Özet kartı (tekil değerler)
+st.markdown(
+    f"""
+<div style="border:1px solid #e5e7eb; border-radius:14px; padding:16px; background:linear-gradient(180deg,#ffffff,#fafafa);">
+  <div style="display:flex; gap:22px; flex-wrap:wrap;">
+    <div>
+      <div style="font-size:13px;color:#475569;font-weight:700;">Tg (2nd heat)</div>
+      <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(tg_val, "°C")}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;color:#475569;font-weight:700;">Tm (2nd heat)</div>
+      <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(tm_val, "°C")}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;color:#475569;font-weight:700;">Tc (cooling)</div>
+      <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(tc_val, "°C")}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;color:#475569;font-weight:700;">ΔHm (2nd heat)</div>
+      <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(dhm_val, "J/g")}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;color:#475569;font-weight:700;">ΔHcc (pref. 2nd → else 1st)</div>
+      <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(dhcc_val, "J/g")}</div>
+    </div>
+    <div>
+      <div style="font-size:13px;color:#475569;font-weight:700;">Crystallinity (Xc)</div>
+      <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(xc_val, "%")}</div>
+    </div>
+  </div>
+  <div style="margin-top:8px;font-size:12px;color:#6b7280;">
+    Notes: Tg/Tm 2. ısıtmadan, Tc soğutmadan; Xc = (ΔHm − ΔHcc) / ΔH°<sub>fus</sub>. Entegrasyonlar **J/g** cinsindedir.
+  </div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+# İndirme için tabloya dök
+summary_df = pd.DataFrame(
+    [{
+        "Type": "III",
+        "Material": material,
+        "Sample Mass (mg)": None if mass_mg is None else round(float(mass_mg), 4),
+        "Heating Rate (°C/min)": None if rate_C_per_min is None else round(float(rate_C_per_min), 4),
+        "Tg (°C)": None if np.isnan(tg_val) else round(tg_val, 2),
+        "Tm (°C)": None if np.isnan(tm_val) else round(tm_val, 2),
+        "Tc (°C)": None if np.isnan(tc_val) else round(tc_val, 2),
+        "ΔHm (J/g)": None if np.isnan(dhm_val) else round(dhm_val, 3),
+        "ΔHcc (J/g)": None if np.isnan(dhcc_val) else round(dhcc_val, 3),
+        "Xc (%)": None if np.isnan(xc_val) else round(xc_val, 2),
+        "ΔH°fus ref (J/g)": DH_ref if DH_ref is not None else None,
+    }]
+)
+
+st.markdown("**📄 Standard Report Table**")
+st.dataframe(summary_df, use_container_width=True)
+
+# CSV indir
+csv_buf = io.StringIO()
+summary_df.to_csv(csv_buf, index=False)
+st.download_button(
+    "⬇️ Download Standard Report (.csv)",
+    data=csv_buf.getvalue().encode("utf-8"),
+    file_name=f"{row['custom_name']}_standard_report.csv",
+    mime="text/csv",
+)
