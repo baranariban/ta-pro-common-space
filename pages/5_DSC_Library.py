@@ -1,4 +1,3 @@
-# 5_DSC_Library.py
 import streamlit as st
 import pandas as pd
 import os
@@ -18,7 +17,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 st.set_page_config(page_title="DSC Library", page_icon="🔬", layout="wide")
-st.title("🔬 DSC Library")
+st.title("DSC Library")
 
 current_user = st.session_state.get("username", "unknown")
 
@@ -500,7 +499,7 @@ if not meta_df.empty:
     # ================================
     # 7) Sonuç kartları
     # ================================
-    st.subheader("📑 Calculated Results (Type III)")
+    st.subheader("Calculated Results (Type III)")
 
     # Kartları 3 sütun halinde yazalım
     def card(title, value, subtitle=""):
@@ -532,13 +531,13 @@ if not meta_df.empty:
         c5.metric("ΔHc (J/g)", fmt(res["ΔHc"], "J/g") if res["name"] == "Cooling" else "—")
         c6.metric("Crystallinity (%)", fmt(res["Crystallinity"], "%"))
 
-    st.info("ℹ️ Enthalpy integrals are reported in **J/g** (unit-corrected).")
+    st.info("ℹ️ Enthalpy integrals are reported in J/g (unit-corrected).")
 
 # ================================
 # 8) Standard Report (Single-Set)
 # ================================
 st.markdown("---")
-st.subheader("🧾 Standard Report (Single Set) — Type III convention")
+st.subheader("Report Format — Type III Convention")
 
 # Segmentlere kolay erişim
 seg = {r["name"]: r for r in results}
@@ -635,15 +634,5 @@ summary_df = pd.DataFrame(
     }]
 )
 
-st.markdown("**📄 Standard Report Table**")
+st.markdown("**Report Table**")
 st.dataframe(summary_df, use_container_width=True)
-
-# CSV indir
-csv_buf = io.StringIO()
-summary_df.to_csv(csv_buf, index=False)
-st.download_button(
-    "⬇️ Download Standard Report (.csv)",
-    data=csv_buf.getvalue().encode("utf-8"),
-    file_name=f"{row['custom_name']}_standard_report.csv",
-    mime="text/csv",
-)
