@@ -12,7 +12,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
     
 st.set_page_config(page_title="CREDIT Literature Reviewer", layout="wide")
-st.title("📚 CREDIT Literature Reviewer")
+st.title("CREDIT Literature Reviewer")
 
 UPLOAD_DIR = "uploaded_literature_credit"
 METADATA_FILE = "literature_files_credit.json"
