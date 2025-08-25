@@ -932,7 +932,7 @@ with tab5:
                 col2.metric(label="Depth (y)", value=f"{bbox_mm[1]} mm")
                 col3.metric(label="Height (z)", value=f"{bbox_mm[2]} mm")
 
-                st.markdown("###Mold Volume")
+                st.markdown("### Mold Volume")
                 st.markdown(
                     f"<div style='font-size:20px; color:#4CAF50; font-weight:bold;'>{volume_m3:.8f} m³</div>",
                     unsafe_allow_html=True
