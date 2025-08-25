@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 st.set_page_config(page_title="Production Tracker", layout="wide")
-st.title("🏭 Production Tracker")
+st.title("Production Tracker")
 
 # 🔐 Giriş kontrolü
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
@@ -89,3 +89,4 @@ else:
                 df.to_csv(DATA_FILE, index=False)
                 st.success("🗑️ Entry deleted.")
                 st.rerun()
+
