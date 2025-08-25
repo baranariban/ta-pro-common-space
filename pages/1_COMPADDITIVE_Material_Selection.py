@@ -565,9 +565,9 @@ with tab1:
         for prop in properties:
             col1, col2 = st.columns(2)
             with col1:
-                min_val = st.number_input(f"Min {prop}", key=f"min_{prop}")
+                min_val = st.number_input(f"Min. {prop}", key=f"min_{prop}")
             with col2:
-                max_val = st.number_input(f"Max {prop}", key=f"max_{prop}")
+                max_val = st.number_input(f"Max. {prop}", key=f"max_{prop}")
             new_entry[prop] = (min_val, max_val)
 
         if st.button("Add composite to dataset"):
@@ -600,11 +600,11 @@ with tab1:
                 for prop in properties:
                     entry[prop] = (row[f"{prop} min"], row[f"{prop} max"])
                 st.session_state.datasets[name] = entry
-            st.success("✅ All composites from Excel uploaded successfully.")
+            st.success("✅ All composites from the Excel file uploaded successfully.")
 
     # 📌 CANDIDATE COMPOSITES — Tüm kompozitleri yatay tabloda göster
     if st.session_state.datasets:
-        st.markdown("### 🧪 **Candidate Composites**")
+        st.markdown("### **Candidate Composites**")
         all_data = {}
         for name, prop_dict in st.session_state.datasets.items():
             all_data[name] = {}
@@ -739,7 +739,7 @@ with tab3:
         "Injection Pressure (MPa)"
     ]
 
-    st.markdown("### 🔎 Property-Based Filtering (Optional)")
+    st.markdown("### 🔎 Property-Based Filtering")
     selected_filters = {}
 
     for prop in filterable_props:
@@ -786,7 +786,7 @@ with tab3:
     final_filtered_composites = filtered_composites
 
     st.markdown("---")
-    st.markdown("### 🔎 **Filtering Passed Composites**")
+    st.markdown("### ✅ **Filtering Passed Composites**")
     if final_filtered_composites:
         st.success(f"{len(final_filtered_composites)} composites matched all selected filter conditions:")
         st.markdown("**" + ", ".join(final_filtered_composites) + "**")
