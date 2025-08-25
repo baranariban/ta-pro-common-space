@@ -609,9 +609,6 @@ st.markdown(
       <div style="font-size:18px;font-weight:800;color:#111827;">{fmt(xc_val, "%")}</div>
     </div>
   </div>
-  <div style="margin-top:8px;font-size:12px;color:#6b7280;">
-    Notes: Tg/Tm 2. ısıtmadan, Tc soğutmadan; Xc = (ΔHm − ΔHcc) / ΔH°<sub>fus</sub>. Entegrasyonlar **J/g** cinsindedir.
-  </div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -636,3 +633,4 @@ summary_df = pd.DataFrame(
 
 st.markdown("**Report Table**")
 st.dataframe(summary_df, use_container_width=True)
+
