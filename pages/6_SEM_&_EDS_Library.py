@@ -1,4 +1,3 @@
-# 6_SEM_&_EDS_Library.py
 import streamlit as st
 import pandas as pd
 import os
@@ -18,7 +17,7 @@ if "authenticated" in st.session_state and not st.session_state.authenticated:
     st.error("🔒 You must be logged in to access this page.")
     st.stop()
 
-st.title("🧪 SEM & EDS Library")
+st.title("SEM & EDS Library")
 
 # =========================
 # Kalıcı Depo
@@ -146,7 +145,7 @@ if submitted:
 # Kayıtların Listesi
 # =========================
 st.markdown("---")
-st.subheader("📚 All SEM & EDS Records")
+st.subheader("All SEM & EDS Records")
 
 if records_df.empty:
     st.info("No records yet.")
@@ -233,3 +232,4 @@ else:
                 save_records(new_df)
                 st.success("Entry deleted.")
                 st.rerun()
+
