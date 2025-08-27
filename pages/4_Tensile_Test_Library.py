@@ -157,9 +157,8 @@ def compute_uts_mpa(stress_mpa: pd.Series):
 
 # Ortak grafik için hazırlık
 combined_fig, combined_ax = plt.subplots()
-combined_ax.set_xlabel("Strain (%)")
-combined_ax.set_ylabel("Stress (MPa)")
-combined_ax.set_title("Combined Stress-Strain Curves")
+combined_ax.set_xlabel("Uzama (%)")
+combined_ax.set_ylabel("Gerilme (MPa)")
 
 # Seçilen her dosya için tablo ve grafik göster
 for name in selected_names:
@@ -270,7 +269,7 @@ for name in selected_names:
         st.markdown(href_excel, unsafe_allow_html=True)
 
         # Ortak grafiğe ekle
-        combined_ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
+        combined_ax.plot(df_result["Uzama (%)"], df_result["Gerilme (MPa)"], label=name)
 
     except Exception as e:
         st.error(f"❌ Error in file '{file_info['original_filename']}': {e}")
