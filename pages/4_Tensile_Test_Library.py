@@ -270,6 +270,8 @@ for name in selected_names:
 
         # Ortak grafiğe ekle
         combined_ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
+        combined_ax.set_xlim(0, 5)
+        combined_ax.set_ylim(0, 80)
 
     except Exception as e:
         st.error(f"❌ Error in file '{file_info['original_filename']}': {e}")
