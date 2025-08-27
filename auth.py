@@ -10,7 +10,8 @@ USER_CREDENTIALS = {
     "ahmetcangunaydin": "smart",
     "busraunlu": "smart",
     "hakanyavas": "smart",
-    "irmaksargin": "smart"
+    "irmaksargin": "smart",
+    "simgecinaraygun": "smart"
 }
 
 def check_credentials(username, password):
