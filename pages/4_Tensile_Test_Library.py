@@ -269,7 +269,7 @@ for name in selected_names:
         st.markdown(href_excel, unsafe_allow_html=True)
 
         # Ortak grafiğe ekle
-        combined_ax.plot(df_result["Uzama (%)"], df_result["Gerilme (MPa)"], label=name)
+        combined_ax.plot(df_result["Strain (%)"], df_result["Stress (MPa)"], label=name)
 
     except Exception as e:
         st.error(f"❌ Error in file '{file_info['original_filename']}': {e}")
